@@ -33,3 +33,8 @@ def create_app(config_class=Config):
         db.create_all()
 
     return app
+
+@login_manager.user_loader
+def load_user(user_id):
+    from app.models import User  # Import local evita problemas de importação circular
+    return User.query.get(int(user_id))
