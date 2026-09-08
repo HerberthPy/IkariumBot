@@ -1,4 +1,4 @@
-from flask import Flask
+from flask import Flask, render_template
 from flask_sqlalchemy import SQLAlchemy
 from flask_login import LoginManager
 from config import Config
@@ -34,6 +34,15 @@ def create_app(config_class=Config):
     # Cria as tabelas do banco de dados automaticamente se não existirem
     with app.app_context():
         db.create_all()
+
+    # Registra handlers de erro globais
+    @app.errorhandler(404)
+    def page_not_found(e):
+        return render_template('main/404.html'), 404
+
+    @app.errorhandler(500)
+    def internal_server_error(e):
+        return render_template('main/500.html'), 500
 
     return app
 
