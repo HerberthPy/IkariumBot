@@ -1,7 +1,5 @@
 from flask import render_template_string, redirect, url_for, request, flash
 from flask_login import login_user, logout_user, login_required, current_user
-from app import db
-from app.models import User
 from app.auth import auth_bp
 
 @auth_bp.route('/login', methods=['GET', 'POST'])
