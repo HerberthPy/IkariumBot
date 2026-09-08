@@ -1,0 +1,11 @@
+.logo-container {
+    border: 0px solid #000;
+    text-align: center;
+}
+
+.login-logo {
+    border: 0px solid #000;
+    max-width: 200px;
+    width: 100%;
+    height: auto;
+}

@@ -1,0 +1,19 @@
+:root {
+    /* Cores Globais */
+    --bg-primary: #F3E8CE;
+    /*--border-color: #334155;*/
+
+    --primary-color: #474536;
+    --primary-hover: #78693F;
+    --text-primary: #000000;
+
+    /* Alertas */
+    --alert-success-bg: #065f46;
+    --alert-success-text: #a7f3d0;
+    --alert-danger-bg: #991b1b;
+    --alert-danger-text: #fecaca;
+
+    /* Tipografia e Raios de Borda */
+    --font-main: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+    --radius-md: 6px;
+}

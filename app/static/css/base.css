@@ -1,0 +1,72 @@
+/* Importação do arquivo de variáveis globais */
+@import url('variables.css');
+
+/* Reset básico & box sizing */
+*,
+*::before,
+*::after {
+    margin: 0;
+    padding: 0;
+    box-sizing: border-box;
+}
+
+/* Estilização global do body */
+body {
+    background-color: var(--bg-primary);
+    color: var(--text-primary);
+    font-family: var(--font-main);
+    line-height: 1.5;
+    -webkit-font-smoothing: antialiased;
+    min-height: 100vh;
+}
+
+/* 4. Tipografia e Links */
+h1, h2, h3, h4, h5, h6 {
+    color: var(--text-primary);
+    font-weight: 600;
+}
+
+a {
+    color: var(--primary-color);
+    text-decoration: none;
+    transition: color 0.2s ease-in-out;
+    font-weight: bold;
+}
+
+a:hover {
+    color: var(--primary-hover);
+}
+
+/* 5. Estilo Universal para Mensagens Flash (Alertas) */
+.alert-container {
+    width: 100%;
+    margin-bottom: 1.25rem;
+}
+
+.alert {
+    padding: 0.85rem 1rem;
+    border-radius: var(--radius-md);
+    font-size: 0.9rem;
+    font-weight: 500;
+    text-align: center;
+    border: 1px solid transparent;
+}
+
+.alert-success {
+    background-color: var(--alert-success-bg);
+    color: var(--alert-success-text);
+    border-color: #047857;
+}
+
+.alert-danger {
+    background-color: var(--alert-danger-bg);
+    color: var(--alert-danger-text);
+    border-color: #b91c1c;
+}
+
+.alert-infor,
+.alert-warning {
+    background-color: #854d0e;
+    color: #fef08a;
+    border-color: #a16207;
+}

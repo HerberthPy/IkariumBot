@@ -5,18 +5,22 @@
     <meta name="viewport" content="width=device-width, initial-scale=1">
     <title>Ikarium Bot - Dashboard</title>
 
+    <link rel="stylesheet" type="text/css" href="{{ url_for('static', filename='css/base.css') }}">
     <link rel="stylesheet" type="text/css" href="{{ url_for('main.static', filename='main/style.css') }}">
 </head>
 
-{% with messages = get_flashed_messages(with_categories=true) %}
-  {% if messages %}
-    {% for category, message in messages %}
-      <div class="alert alert-{{ category }}">
-        {{ message }}
-      </div>
-    {% endfor %}
-  {% endif %}
-{% endwith %}
+        <!-- Mensagens de erro, alerta ou sucesso (ex: "Conta criada com sucesso!") -->
+        <div class="alert-container">
+            <div class="alert">
+                {% with messages = get_flashed_messages(with_categories=true) %}
+                    {% if messages %}
+                        {% for category, message in messages %}
+                            <div class="alert alert-{{ category }}">{{ message }}</div>
+                        {% endfor %}
+                    {% endif %}
+                {% endwith %}
+            </div>
+        </div>
 
 <body>
     <header>
