@@ -28,6 +28,9 @@ def create_app(config_class=Config):
     app.register_blueprint(auth_bp, url_prefix='/auth')
     app.register_blueprint(main_bp)
 
+    # Importa os modelos para o SQLAlchemy reconhecer a estrutura das tabelas
+    from app import models
+
     # Cria as tabelas do banco de dados automaticamente se não existirem
     with app.app_context():
         db.create_all()
