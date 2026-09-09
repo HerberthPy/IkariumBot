@@ -1,13 +1,12 @@
-<!DOCTYPE html>
-<html lang="pt-br">
-<head>
-    <meta charset="utf-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1">
-    <title>Ikarium Bot - Dashboard</title>
+{% extends "base.html" %}
 
-    <link rel="stylesheet" type="text/css" href="{{ url_for('static', filename='css/base.css') }}">
+{% block title %}Dashboard - IkariumBot{% endblock %}
+
+{% block extra_css %}
     <link rel="stylesheet" type="text/css" href="{{ url_for('main.static', filename='main/style.css') }}">
-</head>
+{% endblock %}
+
+{% block content %}
 
         <!-- Mensagens de erro, alerta ou sucesso (ex: "Conta criada com sucesso!") -->
         <div class="alert-container">
@@ -22,7 +21,7 @@
             </div>
         </div>
 
-<body>
+
     <header>
         <nav>
             <h2>Ikarium Bot</h2>
@@ -31,6 +30,9 @@
                 <li><a href="{{ url_for('auth.logout') }}">Sair</a></li>
             </ul>
         </nav>
+
+        <p>Bem-vindo, <strong>{{ current_user.username }}</strong>!</p>
+
     </header>
 
     <main>
@@ -43,6 +45,6 @@
     </footer>
 
 
-</body>
+{% endblock %}
 
-</html>
+{% block extra_js %}{% endblock %}
