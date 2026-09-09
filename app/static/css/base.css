@@ -12,29 +12,14 @@
 
 /* Estilização global do body */
 body {
-    background-color: var(--bg-primary);
+    background-color: var(--bg-color);
     color: var(--text-primary);
     font-family: var(--font-main);
     line-height: 1.5;
     -webkit-font-smoothing: antialiased;
     min-height: 100vh;
-}
-
-/* 4. Tipografia e Links */
-h1, h2, h3, h4, h5, h6 {
-    color: var(--text-primary);
-    font-weight: 600;
-}
-
-a {
-    color: var(--primary-color);
-    text-decoration: none;
-    transition: color 0.2s ease-in-out;
-    font-weight: bold;
-}
-
-a:hover {
-    color: var(--primary-hover);
+    display: flex;
+    flex-direction: column;
 }
 
 /* 5. Estilo Universal para Mensagens Flash (Alertas) */

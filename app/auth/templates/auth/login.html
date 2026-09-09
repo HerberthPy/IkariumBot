@@ -7,42 +7,49 @@
 {% endblock %}
 
 {% block content %}
-    <div class="login-container">
+        <main class="login-container">
+            <div class="login-card">
 
-        <!--<div class="logo-container">
-            <img src="{{ url_for('auth.static', filename='auth/images/logoikariumbot.png') }}" alt="Logo Ikarium Bot" class="login-logo">
-        </div>-->
+                <h2>Acessar Conta</h2>
 
-        <!-- Mensagens de erro, alerta ou sucesso (ex: "Conta criada com sucesso!") -->
-        <div class="alert-container">
-            <div class="alert">
-                {% with messages = get_flashed_messages(with_categories=true) %}
-                    {% if messages %}
-                        {% for category, message in messages %}
-                            <div class="alert alert-{{ category }}">{{ message }}</div>
-                        {% endfor %}
-                    {% endif %}
-                {% endwith %}
+                <form action="{{ url_for('auth.login') }}" method="POST">
+                    <div class="input-group">
+                        <label for="username">Usuário</label>
+                        <div class="input-wrapper">
+                            <i class="fa-regular fa-user"></i>
+                            <input type="text" id="username" name="username" required placeholder="Digite seu usuário">
+                        </div>
+                    </div>
+
+                    <div class="input-group">
+                        <label for="password">Senha</label>
+                        <div class="input-wrapper">
+                            <i class="fa-solid fa-key"></i>
+                            <input type="password" id="password" name="password" required placeholder="Digite sua senha">
+                        </div>
+                    </div>
+
+                    <button type="submit" class="btn-entrar">ENTRAR</button>
+                </form>
+
+                <p class="signup-text">
+                    Ainda não tem conta? <a href="{{ url_for('auth.register') }}">Cadastre-se</a>
+                </p>
+
+                <!-- Mensagens de erro, alerta ou sucesso (ex: "Conta criada com sucesso!") -->
+                <div class="alert-container">
+                    <div class="alert">
+                        {% with messages = get_flashed_messages(with_categories=true) %}
+                            {% if messages %}
+                                {% for category, message in messages %}
+                                    <div class="alert alert-{{ category }}">{{ message }}</div>
+                                {% endfor %}
+                            {% endif %}
+                        {% endwith %}
+                    </div>
+                </div>
             </div>
-        </div>
-
-        <form action="{{ url_for('auth.login') }}" method="POST">
-            <h2>Acessar Conta</h2>
-            <div class="form-group">
-                <label for="username">Usuário</label>
-                <input type="text" id="username" name="username" required placeholder="Digite seu usuário">
-            </div>
-
-            <div class="form-group">
-                <label for="password">Senha</label>
-                <input type="password" id="password" name="password" required placeholder="Digite sua senha">
-            </div>
-
-            <button type="submit">Entrar</button>
-        </form>
-
-        <p>Ainda não tem conta? <a href="{{ url_for('auth.register') }}">Cadastre-se</a></p>
-    </div>
+        </main>
 {% endblock %}
 
-</html>
+{% block extra_js %}{% endblock %}

@@ -1,47 +1,64 @@
-<!DOCTYPE html>
-<html lang="pt-br">
-<head>
-    <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Cadastro - Ikarium Bot</title>
-    <link rel="stylesheet" href="{{ url_for('static', filename='css/base.css') }}">
-    <link rel="stylesheet" href="{{ url_for('auth.static', filename='auth/style.css') }}">
-</head>
-<body>
+{% extends "base.html" %}
 
-    <div class="register-container">
-        <h2>Criar Conta</h2>
+{% block title %}Login - IkariumBot{% endblock %}
 
-        <!-- Exibição de mensagens flash (erros ou avisos) -->
-        {% with messages = get_flashed_messages(with_categories=true) %}
-            {% if messages %}
-                {% for category, message in messages %}
-                    <div class="alert alert-{{ category }}">{{ message }}</div>
-                {% endfor %}
-            {% endif %}
-        {% endwith %}
+{% block extra_css %}
+    <link rel="stylesheet" type="text/css" href="{{ url_for('auth.static', filename='auth/style.css') }}">
+{% endblock %}
 
-        <form action="{{ url_for('auth.register') }}" method="POST">
-            <div class="form-group">
-                <label for="username">Usuário</label>
-                <input type="text" id="username" name="username" required placeholder="Digite seu usuário">
+{% block content %}
+    <main class="login-container">
+        <div class="login-card">
+            <h2>Criar Conta</h2>
+
+            <form action="{{ url_for('auth.register') }}" method="POST">
+                <!-- Campo Usuário -->
+                <div class="input-group">
+                    <label for="username">Usuário</label>
+                    <div class="input-wrapper">
+                        <i class="fa-regular fa-user"></i>
+                        <input type="text" id="username" name="username" required placeholder="Digite seu usuário">
+                    </div>
+                </div>
+                <!-- Campo E-mail -->
+                <div class="input-group">
+                    <label for="email">E-mail</label>
+                    <div class="input-wrapper">
+                        <i class="fa-regular fa-envelope"></i>
+                        <input type="email" id="email" name="email" required placeholder="seu@email.com">
+                    </div>
+                </div>
+                <!-- Campo Senha -->
+                <div class="input-group">
+                    <label for="password">Senha</label>
+                    <div class="input-wrapper">
+                        <i class="fa-solid fa-key"></i>
+                        <input type="password" id="password" name="password" required placeholder="Sua senha">
+                    </div>
+                </div>
+
+                <button type="submit" class="btn-entrar">CADASTRAR</button>
+
+            </form>
+
+            <p class="signup-text">
+                Já tem uma conta? <a href="{{ url_for('auth.login')}}">Fazer Login</a>
+            </p>
+
+            <!-- Mensagens de erro, alerta ou sucesso (ex: "Conta criada com sucesso!") -->
+            <div class="alert-container">
+                <div class="alert">
+                    {% with messages = get_flashed_messages(with_categories=true) %}
+                        {% if messages %}
+                            {% for category, message in messages %}
+                                <div class="alert alert-{{ category }}">{{ message }}</div>
+                            {% endfor %}
+                        {% endif %}
+                    {% endwith %}
+                </div>
             </div>
+        </div>
+    </main>
+{% endblock %}
 
-            <div class="form-group">
-                <label for="email">E-mail</label>
-                <input type="email" id="email" name="email" required placeholder="seu@email.com">
-            </div>
-
-            <div class="form-group">
-                <label for="password">Senha</label>
-                <input type="password" id="password" name="password" required placeholder="Sua senha">
-            </div>
-
-            <button type="submit">Cadastrar</button>
-        </form>
-
-        <p>Já tem uma conta? <a href="{{ url_for('auth.login') }}">Fazer Login</a></p>
-    </div>
-
-</body>
-</html>
+{% block extra_js %}{% endblock %}

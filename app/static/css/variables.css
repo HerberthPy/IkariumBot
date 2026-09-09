@@ -1,11 +1,12 @@
 :root {
     /* Cores Globais */
-    --bg-primary: #F3E8CE;
-    /*--border-color: #334155;*/
-
-    --primary-color: #474536;
-    --primary-hover: #78693F;
+    --bg-color: #F3E8CE;
     --text-primary: #000000;
+    --text-secondary: #475569;     /* Labels dos campos */
+
+    /* Fonts e tipografias */
+    --font-main: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+    --radius-md: 6px;
 
     /* Alertas */
     --alert-success-bg: #065f46;
@@ -13,7 +14,11 @@
     --alert-danger-bg: #991b1b;
     --alert-danger-text: #fecaca;
 
-    /* Tipografia e Raios de Borda */
-    --font-main: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
-    --radius-md: 6px;
+    /* Formulários */
+    --card-bg: rgba(255, 255, 255, 0.65); /* Card semi-transparente estilo Glassmorphism */
+    --input-icon: #6b7280;        /* Cor dos ícones nos inputs */
+    --input-bg: #e5e7eb;          /* Fundo dos inputs */
+    --btn-primary: #3b82f6;       /* Azul do botão de ação */
+    --btn-hover: #2563eb;         /* Azul hover */
+
 }
