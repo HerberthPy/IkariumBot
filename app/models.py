@@ -1,5 +1,5 @@
-from email.policy import default
-
+from flask import current_app
+from cryptography.fernet import Fernet
 from flask_login import UserMixin
 from werkzeug.security import generate_password_hash, check_password_hash
 from app import db, login_manager
@@ -34,10 +34,10 @@ class IkariamLobby(db.Model):
     id = db.Column(db.Integer, primary_key=True, autoincrement=True)
     nickname = db.Column(db.String(80), nullable=False)
     email = db.Column(db.String(120), unique=True, nullable=False)
-    pass_hash = db.Column(db.String(256), nullable=False)
+    password = db.Column('lobby_password', db.String(256), nullable=False)
 
     vpn_user = db.Column(db.String(120), nullable=False)
-    vpn_pass_hash = db.Column(db.String(256), nullable=False)
+    vpn_pass = db.Column('vpn_password', db.String(256), nullable=False)
 
     user_id = db.Column(db.Integer, db.ForeignKey('user.id'), nullable=False)
 
@@ -46,21 +46,37 @@ class IkariamLobby(db.Model):
     last_update = db.Column(db.DateTime, nullable=False)
     created_at = db.Column(db.DateTime(timezone=True), default=now_utc, nullable=False)
 
-    def set_password(self, password):
-        """Gera o hash seguro a partir da senha em texto puro."""
-        self.pass_hash = generate_password_hash(password)
+    # Função auxiliar para pegar a instância do Fernet
+    @staticmethod
+    def _get_cipher():
+        key = current_app.config['FERNET_KEY']
+        if isinstance(key, str):
+            key = key.encode()
+        return Fernet(key)
 
-    def check_password(self, password):
-        """Verifica se a senha informada bate com o hash salvo."""
-        return check_password_hash(self.pass_hash, password)
+    @property
+    def lobby_password(self):
+        if not self.password:
+            return ""
+        cipher = self._get_cipher()
+        return cipher.decrypt(self.password.encode()).decode()
 
-    def set_password_vpn(self, vpn_pass):
-        """Gera o hash seguro a partir da senha em texto puro."""
-        self.vpn_pass_hash = generate_password_hash(vpn_pass)
+    @lobby_password.setter
+    def lobby_password(self, raw_password):
+        cipher = self._get_cipher()
+        self.password = cipher.encrypt(raw_password.encode()).decode()
 
-    def check_password_vpn(self, vpn_pass):
-        """Verifica se a senha informada bate com o hash salvo."""
-        return check_password_hash(self.vpn_pass_hash, vpn_pass)
+    @property
+    def vpn_password(self):
+        if not self.vpn_pass:
+            return ""
+        cipher = self._get_cipher()
+        return cipher.decrypt(self.vpn_pass.encode()).decode()
+
+    @vpn_password.setter
+    def vpn_password(self, raw_password):
+        cipher = self._get_cipher()
+        self.vpn_pass = cipher.encrypt(raw_password.encode()).decode()
 
     def __repr__(self):
         return f'<IkariamLobby {self.nickname}>'

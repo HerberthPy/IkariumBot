@@ -1,0 +1,127 @@
+{% extends "base.html" %}
+
+{% block title %}Dashboard - IkariumBot{% endblock %}
+
+{% block extra_css %}
+    <link rel="stylesheet" type="text/css" href="{{ url_for('main.static', filename='main/style.css') }}">
+{% endblock %}
+
+{% block content %}
+
+<div class="container mt-4">
+    <div class="d-flex justify-content-between align-items-center mb-4">
+        <h2>Lobbies Cadastrados</h2>
+        <a href="" class="btn btn-primary">
+            + Adicionar Lobby
+        </a>
+    </div>
+
+    {% if lobbies %}
+    <div class="table-responsive shadow-sm rounded">
+        <table class="table table-hover align-middle mb-0 bg-white">
+            <thead class="table-dark">
+                <tr>
+                    <th>ID</th>
+                    <th>Apelido</th>
+                    <th>E-mail</th>
+                    <th>Senha</th>
+                    <th>Usuário VPN</th>
+                    <th>Senha VPN</th>
+                    <th>Situação</th>
+                    <th>Ultima Atualização</th>
+                    <th class="text-end">Ações</th>
+                </tr>
+            </thead>
+            <tbody>
+                {% for lobby in lobbies %}
+                <tr>
+                    <td>#{{ lobby.id }}</td>
+                    <td><strong>{{ lobby.nickname }}</strong></td>
+                    <td>{{ lobby.email or 'N/A' }}</td>
+                    <td class="align-middle">
+                        <div class="d-flex align-items-center gap-2">
+                            <!-- Texto oculto padrão -->
+                            <span class="password-masked">••••••••</span>
+
+                            <!-- Texto da senha (inicia escondido) -->
+                            <span class="password-text d-none">{{ lobby.pass_hash }}</span>
+
+                            <!-- Botão Olho -->
+                            <button type="button"
+                                    class="btn btn-sm btn-link text-decoration-none p-0 ms-1"
+                                    onclick="togglePasswordVisibility(this)"
+                                    title="Exibir/Ocultar Senha">
+                                👁
+                            </button>
+                        </div>
+                    </td>
+                    <td><code>{{ lobby.vpn_user }}</code></td>
+                    <td class="align-middle">
+                        <div class="d-flex align-items-center gap-2">
+                            <!-- Texto oculto padrão -->
+                            <span class="password-masked">••••••••</span>
+
+                            <!-- Texto da senha (inicia escondido) -->
+                            <span class="password-text d-none">{{ lobby.pass_hash }}</span>
+
+                            <!-- Botão Olho -->
+                            <button type="button"
+                                    class="btn btn-sm btn-link text-decoration-none p-0 ms-1"
+                                    onclick="togglePasswordVisibility(this)"
+                                    title="Exibir/Ocultar Senha">
+                                👁
+                            </button>
+                        </div>
+                    </td>
+                    <td>ATIVA</td>
+                    <td>{{ lobby.last_update }}</td>
+                    <td class="text-end">
+                        <a href="" class="btn btn-sm btn-outline-primary me-1">
+                            Detalhes
+                        </a>
+                        <a href="" class="btn btn-sm btn-outline-secondary me-1">
+                            Editar
+                        </a>
+                        <form action="" method="POST" class="d-inline" onsubmit="return confirm('Tem certeza que deseja remover este lobby?');">
+                            <button type="submit" class="btn btn-sm btn-outline-danger">Excluir</button>
+                        </form>
+                    </td>
+                </tr>
+                {% endfor %}
+            </tbody>
+        </table>
+    </div>
+    {% else %}
+    <div class="alert alert-info text-center py-4" role="alert">
+        <p class="mb-2">Nenhum lobby cadastrado até o momento.</p>
+        <a href="" class="btn btn-sm btn-primary">Cadastrar Novo Lobby</a>
+    </div>
+    {% endif %}
+</div>
+
+{% endblock %}
+
+{% block extra_js %}
+
+<script>
+function togglePasswordVisibility(button) {
+    const container = button.parentElement;
+    const maskedText = container.querySelector('.password-masked');
+    const rawText = container.querySelector('.password-text');
+
+    if (rawText.classList.contains('d-none')) {
+        // Exibe a senha em texto puro e oculta a máscara
+        rawText.classList.remove('d-none');
+        maskedText.classList.add('d-none');
+        button.innerText = '👁';
+    } else {
+        // Oculta a senha em texto puro e exibe a máscara
+        rawText.classList.add('d-none');
+        maskedText.classList.remove('d-none');
+        button.innerText = '👁';
+    }
+}
+</script>
+
+
+{% endblock %}
