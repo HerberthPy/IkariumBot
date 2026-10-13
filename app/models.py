@@ -38,6 +38,7 @@ class IkariamLobby(db.Model):
 
     vpn_user = db.Column(db.String(120), nullable=False)
     vpn_pass = db.Column('vpn_password', db.String(256), nullable=False)
+    vpn_country = db.Column(db.String(80), nullable=False)
 
     user_id = db.Column(db.Integer, db.ForeignKey('user.id'), nullable=False)
 
