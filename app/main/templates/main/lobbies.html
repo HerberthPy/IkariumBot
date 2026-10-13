@@ -73,7 +73,13 @@
                             </button>
                         </div>
                     </td>
-                    <td>ATIVA</td>
+                    <td>
+                        {% if lobby.active == 1 %}
+                        ATIVA
+                        {% elif lobby.active == 0 %}
+                        INATIVA
+                        {% endif %}
+                    </td>
                     <td>{{ lobby.last_update }}</td>
                     <td class="text-end">
                         <a href="" class="btn btn-sm btn-outline-primary me-1">
