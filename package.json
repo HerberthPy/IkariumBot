@@ -1,0 +1,28 @@
+{
+  "name": "ikariumbot",
+  "version": "1.0.0",
+  "description": "",
+  "main": "index.js",
+  "scripts": {
+    "build-css": "sass --quiet-deps app/static/scss/main.scss app/static/css/style.css --style compressed",
+    "watch-css": "sass --quiet-deps --watch app/static/scss/main.scss app/static/css/style.css"
+  },
+  "dependencies": {
+    "bootstrap": "^5.3.8"
+  },
+  "devDependencies": {
+    "sass": "^1.105.1"
+  },
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/HerberthPy/IkariumBot.git"
+  },
+  "keywords": [],
+  "author": "",
+  "license": "ISC",
+  "type": "commonjs",
+  "bugs": {
+    "url": "https://github.com/HerberthPy/IkariumBot/issues"
+  },
+  "homepage": "https://github.com/HerberthPy/IkariumBot#readme"
+}

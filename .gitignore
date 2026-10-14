@@ -19,3 +19,6 @@ instance/
 # Arquivos de configuração da IDE / Editor
 .vscode/
 .idea/
+
+# Módulos do Node.JS
+node_modules/

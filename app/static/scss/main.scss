@@ -1,0 +1,23 @@
+// 1. Importa suas variáveis customizadas
+@import "custom";
+
+// 2. Funções e mixins obrigatórios do Bootstrap
+@import "../../../node_modules/bootstrap/scss/functions";
+@import "../../../node_modules/bootstrap/scss/variables";
+@import "../../../node_modules/bootstrap/scss/maps";
+@import "../../../node_modules/bootstrap/scss/mixins";
+@import "../../../node_modules/bootstrap/scss/utilities";
+
+// 3. Apenas os componentes que usaremos no layout
+@import "../../../node_modules/bootstrap/scss/root";
+@import "../../../node_modules/bootstrap/scss/reboot";
+@import "../../../node_modules/bootstrap/scss/type";
+@import "../../../node_modules/bootstrap/scss/containers";
+@import "../../../node_modules/bootstrap/scss/grid";
+@import "../../../node_modules/bootstrap/scss/card";
+@import "../../../node_modules/bootstrap/scss/buttons";
+@import "../../../node_modules/bootstrap/scss/forms"; // Para os inputs e floating labels
+@import "../../../node_modules/bootstrap/scss/helpers";
+
+// 4. API de Utilitários (Classes de espaçamento, alinhamento e cores)
+@import "../../../node_modules/bootstrap/scss/utilities/api";

@@ -11,13 +11,18 @@
             <div class="login-card">
 
                 <h2>Acessar Conta</h2>
+                <h5 class="text-primary mb-3 border-bottom pb-2 fs-6 fw-bold">Credenciais do Lobby</h5>
+                <div class="card-header bg-dark text-white py-3">
+                    <h4 class="mb-0 fs-5">Cadastrar Novo Lobby (Ikariam)</h4>
+                </div>
 
                 <form action="{{ url_for('auth.login') }}" method="POST">
-                    <div class="input-group">
-                        <label for="username">Usuário</label>
+
+                    <div class="mb-3">
+                        <label for="email" class="form-label">E-mail</label>
                         <div class="input-wrapper">
                             <i class="fa-regular fa-user"></i>
-                            <input type="text" id="username" name="username" required placeholder="Digite seu usuário">
+                            <input type="email" class="form-control" id="email" name="email" required placeholder="exemplo@email.com">
                         </div>
                     </div>
 
@@ -33,7 +38,7 @@
                 </form>
 
                 <p class="signup-text">
-                    Ainda não tem conta? <a href="{{ url_for('auth.register') }}">Cadastre-se</a>
+                    Ainda não tem conta? <a href="">Cadastre-se</a>
                 </p>
 
                 <!-- Mensagens de erro, alerta ou sucesso (ex: "Conta criada com sucesso!") -->

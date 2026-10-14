@@ -1,0 +1,12 @@
+// Cores personalizadas do seu projeto
+$primary: #4f46e5;          // Azul/Roxo moderno
+$body-bg: #f8f9fa;          // Fundo cinza claro
+$body-color: #212529;       // Cor do texto
+
+// Ajustes de estilo
+$border-radius: 0.5rem;     // 8px
+$border-radius-lg: 0.75rem; // 12px
+
+// Personalização de foco nos inputs
+$input-focus-border-color: $primary;
+$input-focus-box-shadow: 0 0 0 0.25rem rgba($primary, 0.25);

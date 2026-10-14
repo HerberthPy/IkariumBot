@@ -1,5 +1,12 @@
 @echo off
 
+:: 0. Instalando dependencias do Node/Sass
+echo Instalando dependencias do Node/Sass se necessario...
+call npm install
+
+echo Compilando CSS...
+call npm run build-css
+
 :: 1. Verifica se a pasta .venv já existe
 if not exist ".venv" (
     echo Criando o ambiente virtual .venv...
