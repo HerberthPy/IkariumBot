@@ -2,59 +2,89 @@
 
 {% block title %}Login - IkariumBot{% endblock %}
 
-{% block extra_css %}
-    <link rel="stylesheet" type="text/css" href="{{ url_for('auth.static', filename='auth/style.css') }}">
-{% endblock %}
-
 {% block content %}
-        <main class="login-container">
-            <div class="login-card">
+<main class="container d-flex align-items-center min-vh-100 py-5">
+  <div class="row justify-content-center w-100 m-0">
+    <div class="col-12 col-sm-10 col-md-8 col-lg-5 col-xl-4">
 
-                <h2>Acessar Conta</h2>
-                <h5 class="text-primary mb-3 border-bottom pb-2 fs-6 fw-bold">Credenciais do Lobby</h5>
-                <div class="card-header bg-dark text-white py-3">
-                    <h4 class="mb-0 fs-5">Cadastrar Novo Lobby (Ikariam)</h4>
-                </div>
+      <!-- Card Principal -->
+      <div class="card border-0 shadow-sm rounded-4 p-4 p-sm-5 bg-white">
 
-                <form action="{{ url_for('auth.login') }}" method="POST">
+        <!-- Header / Logo -->
+        <div class="text-center mb-4">
+          <div class="bg-primary text-white d-inline-flex align-items-center justify-content-center rounded-circle mb-3" style="width: 56px; height: 56px;">
+            <i class="bi bi-robot fs-3"></i>
+          </div>
+          <h1 class="h4 fw-bold mb-1">IkariumBot</h1>
+          <p class="text-secondary small">Entre com suas credenciais para continuar</p>
+        </div>
 
-                    <div class="mb-3">
-                        <label for="email" class="form-label">E-mail</label>
-                        <div class="input-wrapper">
-                            <i class="fa-regular fa-user"></i>
-                            <input type="email" class="form-control" id="email" name="email" required placeholder="exemplo@email.com">
-                        </div>
-                    </div>
+        <!-- Mensagens Flash de Alerta -->
+        {% with messages = get_flashed_messages(with_categories=true) %}
+          {% if messages %}
+            {% for category, message in messages %}
+              <div class="alert alert-{{ 'danger' if category in ['error', 'danger'] else category }} alert-dismissible fade show small" role="alert">
+                {{ message }}
+                <button type="button" class="btn-close" data-bs-dismiss="alert" aria-label="Close"></button>
+              </div>
+            {% endfor %}
+          {% endif %}
+        {% endwith %}
 
-                    <div class="input-group">
-                        <label for="password">Senha</label>
-                        <div class="input-wrapper">
-                            <i class="fa-solid fa-key"></i>
-                            <input type="password" id="password" name="password" required placeholder="Digite sua senha">
-                        </div>
-                    </div>
+        <!-- Formulário -->
+        <form action="{{ url_for('auth.login') }}" method="POST">
 
-                    <button type="submit" class="btn-entrar">ENTRAR</button>
-                </form>
+          <div class="form-floating mb-3">
+            <input
+              type="email"
+              class="form-control rounded-3"
+              id="email"
+              name="email"
+              placeholder="nome@exemplo.com"
+              required
+            >
+            <label for="email">E-mail</label>
+          </div>
 
-                <p class="signup-text">
-                    Ainda não tem conta? <a href="">Cadastre-se</a>
-                </p>
+          <div class="form-floating mb-3">
+            <input
+              type="password"
+              class="form-control rounded-3"
+              id="password"
+              name="password"
+              placeholder="Senha"
+              required
+            >
+            <label for="password">Senha</label>
+          </div>
 
-                <!-- Mensagens de erro, alerta ou sucesso (ex: "Conta criada com sucesso!") -->
-                <div class="alert-container">
-                    <div class="alert">
-                        {% with messages = get_flashed_messages(with_categories=true) %}
-                            {% if messages %}
-                                {% for category, message in messages %}
-                                    <div class="alert alert-{{ category }}">{{ message }}</div>
-                                {% endfor %}
-                            {% endif %}
-                        {% endwith %}
-                    </div>
-                </div>
+          <div class="d-flex justify-content-between align-items-center mb-4 small">
+            <div class="form-check">
+              <input class="form-check-input" type="checkbox" id="remember_me" name="remember_me">
+              <label class="form-check-label text-secondary" for="remember_me">
+                Lembrar de mim
+              </label>
             </div>
-        </main>
-{% endblock %}
+            <a href="#" class="text-primary text-decoration-none fw-semibold">Esqueceu a senha?</a>
+          </div>
 
-{% block extra_js %}{% endblock %}
+          <button type="submit" class="btn btn-primary w-100 py-2.5 rounded-3 fw-semibold shadow-sm mb-3">
+            Entrar <i class="bi bi-box-arrow-in-right ms-1"></i>
+          </button>
+
+        </form>
+
+        <!-- Link para Criar Conta -->
+        <div class="text-center mt-3 pt-3 border-top">
+          <p class="text-secondary small mb-0">
+            Ainda não tem uma conta?
+            <a href="{{ url_for('auth.register') }}" class="text-primary text-decoration-none fw-bold">Criar conta</a>
+          </p>
+        </div>
+
+      </div>
+
+    </div>
+  </div>
+</main>
+{% endblock %}

@@ -1,64 +1,165 @@
 {% extends "base.html" %}
 
-{% block title %}Criar Conta - IkariumBot{% endblock %}
-
-{% block extra_css %}
-    <link rel="stylesheet" type="text/css" href="{{ url_for('auth.static', filename='auth/style.css') }}">
-{% endblock %}
+{% block title %}Criar Conta e Escolher Plano - IkariumBot{% endblock %}
 
 {% block content %}
-    <main class="login-container">
-        <div class="login-card">
-            <h2>Criar Conta</h2>
+<main class="container d-flex align-items-center min-vh-100 py-5">
+  <div class="row justify-content-center w-100 m-0">
+    <!-- Aumentamos ligeiramente a largura para acomodar os cards de plano lado a lado em telas maiores -->
+    <div class="col-12 col-sm-10 col-md-9 col-lg-7 col-xl-6">
 
-            <form action="{{ url_for('auth.register') }}" method="POST">
-                <!-- Campo Usuário -->
-                <div class="input-group">
-                    <label for="username">Usuário</label>
-                    <div class="input-wrapper">
-                        <i class="fa-regular fa-user"></i>
-                        <input type="text" id="username" name="username" required placeholder="Digite seu usuário">
-                    </div>
-                </div>
-                <!-- Campo E-mail -->
-                <div class="input-group">
-                    <label for="email">E-mail</label>
-                    <div class="input-wrapper">
-                        <i class="fa-regular fa-envelope"></i>
-                        <input type="email" id="email" name="email" required placeholder="seu@email.com">
-                    </div>
-                </div>
-                <!-- Campo Senha -->
-                <div class="input-group">
-                    <label for="password">Senha</label>
-                    <div class="input-wrapper">
-                        <i class="fa-solid fa-key"></i>
-                        <input type="password" id="password" name="password" required placeholder="Sua senha">
-                    </div>
-                </div>
+      <!-- Card Principal -->
+      <div class="card border-0 shadow-sm rounded-4 p-4 p-sm-5 bg-white">
 
-                <button type="submit" class="btn-entrar">CADASTRAR</button>
-
-            </form>
-
-            <p class="signup-text">
-                Já tem uma conta? <a href="{{ url_for('auth.login')}}">Fazer Login</a>
-            </p>
-
-            <!-- Mensagens de erro, alerta ou sucesso (ex: "Conta criada com sucesso!") -->
-            <div class="alert-container">
-                <div class="alert">
-                    {% with messages = get_flashed_messages(with_categories=true) %}
-                        {% if messages %}
-                            {% for category, message in messages %}
-                                <div class="alert alert-{{ category }}">{{ message }}</div>
-                            {% endfor %}
-                        {% endif %}
-                    {% endwith %}
-                </div>
-            </div>
+        <!-- Header / Logo -->
+        <div class="text-center mb-4">
+          <div class="bg-primary text-white d-inline-flex align-items-center justify-content-center rounded-circle mb-3" style="width: 56px; height: 56px;">
+            <i class="bi bi-rocket-takeoff-fill fs-3"></i>
+          </div>
+          <h1 class="h4 fw-bold mb-1">Crie sua Conta e Escolha seu Plano</h1>
+          <p class="text-secondary small">Comece a automatizar seus processos hoje mesmo</p>
         </div>
-    </main>
-{% endblock %}
 
-{% block extra_js %}{% endblock %}
+        <!-- Mensagens Flash de Alerta -->
+        {% with messages = get_flashed_messages(with_categories=true) %}
+          {% if messages %}
+            {% for category, message in messages %}
+              <div class="alert alert-{{ 'danger' if category in ['error', 'danger'] else category }} alert-dismissible fade show small" role="alert">
+                {{ message }}
+                <button type="button" class="btn-close" data-bs-dismiss="alert" aria-label="Close"></button>
+              </div>
+            {% endfor %}
+          {% endif %}
+        {% endwith %}
+
+        <!-- Formulário de Cadastro -->
+        <form action="{{ url_for('auth.register') }}" method="POST">
+
+          <!-- SEÇÃO 1: Dados Pessoais -->
+          <h6 class="fw-bold text-dark mb-3 border-bottom pb-2">
+            <i class="bi bi-person me-1 text-primary"></i> 1. Dados Pessoais
+          </h6>
+
+          <div class="form-floating mb-3">
+            <input type="text" class="form-control rounded-3" id="name" name="name" placeholder="Seu Nome" required>
+            <label for="name">Nome Completo</label>
+          </div>
+
+          <div class="form-floating mb-3">
+            <input type="email" class="form-control rounded-3" id="email" name="email" placeholder="nome@exemplo.com" required>
+            <label for="email">E-mail</label>
+          </div>
+
+          <div class="row g-2 mb-4">
+            <div class="col-md-6">
+              <div class="form-floating">
+                <input type="password" class="form-control rounded-3" id="password" name="password" placeholder="Senha" required>
+                <label for="password">Senha</label>
+              </div>
+            </div>
+            <div class="col-md-6">
+              <div class="form-floating">
+                <input type="password" class="form-control rounded-3" id="confirm_password" name="confirm_password" placeholder="Confirme a Senha" required>
+                <label for="confirm_password">Confirmar Senha</label>
+              </div>
+            </div>
+          </div>
+
+          <!-- SEÇÃO 2: Escolha do Plano -->
+          <h6 class="fw-bold text-dark mb-3 border-bottom pb-2">
+            <i class="bi bi-credit-card me-1 text-primary"></i> 2. Escolha seu Plano
+          </h6>
+
+          <div class="row g-3 mb-4">
+            <!-- Plano Básico -->
+            <div class="col-12 col-md-6">
+              <input type="radio" class="btn-check" name="plan" id="plan_basic" value="basic">
+              <label class="btn btn-outline-primary w-100 h-100 p-3 text-start rounded-3 position-relative d-flex flex-column justify-content-between" for="plan_basic">
+                <div>
+                  <div class="d-flex justify-content-between align-items-center mb-2">
+                    <span class="fw-bold fs-6">Plano Básico</span>
+                    <i class="bi bi-check-circle-fill fs-5 text-primary"></i>
+                  </div>
+                  <div class="mb-2">
+                    <span class="fs-4 fw-bold">R$ 29,90</span>
+                    <span class="text-muted small">/mês</span>
+                  </div>
+                  <ul class="list-unstyled small text-secondary mb-0">
+                    <li class="mb-1"><i class="bi bi-check2 text-success me-1"></i> Até 2 contas ativas</li>
+                    <li class="mb-1"><i class="bi bi-check2 text-success me-1"></i> Suporte por E-mail</li>
+                    <li><i class="bi bi-check2 text-success me-1"></i> Execuções diárias</li>
+                  </ul>
+                </div>
+              </label>
+            </div>
+
+            <!-- Plano Premium -->
+            <div class="col-12 col-md-6">
+              <input type="radio" class="btn-check" name="plan" id="plan_premium" value="premium">
+              <label class="btn btn-outline-primary w-100 h-100 p-3 text-start rounded-3 position-relative d-flex flex-column justify-content-between" for="plan_premium">
+                <div>
+                  <div class="d-flex justify-content-between align-items-center mb-2">
+                    <span class="fw-bold fs-6">Plano Premium</span>
+                    <span class="badge bg-warning text-dark rounded-pill extra-small">Mais Popular</span>
+                  </div>
+                  <div class="mb-2">
+                    <span class="fs-4 fw-bold">R$ 59,90</span>
+                    <span class="text-muted small">/mês</span>
+                  </div>
+                  <ul class="list-unstyled small text-secondary mb-0">
+                    <li class="mb-1"><i class="bi bi-check2 text-success me-1"></i> Contas ilimitadas</li>
+                    <li class="mb-1"><i class="bi bi-check2 text-success me-1"></i> Suporte Prioritário 24/7</li>
+                    <li class="mb-1"><i class="bi bi-check2 text-success me-1"></i> Execuções ilimitadas</li>
+                    <li><i class="bi bi-check2 text-success me-1"></i> Acesso antecipado a novos recursos</li>
+                  </ul>
+                </div>
+              </label>
+            </div>
+          </div>
+
+          <!-- SEÇÃO 3: Forma de Pagamento -->
+          <h6 class="fw-bold text-dark mb-3 border-bottom pb-2">
+            <i class="bi bi-wallet2 me-1 text-primary"></i> 3. Forma de Pagamento
+          </h6>
+
+          <div class="mb-4">
+            <select class="form-select py-2.5 rounded-3 mb-2" id="payment_method" name="payment_method" required>
+              <option value="" selected disabled>Selecione como prefere pagar...</option>
+              <option value="pix">Cartão de Crédito (Renovação Automática)</option>
+              <option value="pix">PIX (Com 5% de desconto)</option>
+              <option value="boleto">Boleto Bancário (Mensal)</option>
+            </select>
+            <span class="text-muted small d-block">
+              <i class="bi bi-shield-check text-success me-1"></i> Cobrança recorrente. Você pode cancelar a qualquer momento sem fidelidade.
+            </span>
+          </div>
+
+          <!-- Termos de Aceite -->
+          <div class="form-check mb-4 small">
+            <input class="form-check-input" type="checkbox" id="terms" name="terms" required>
+            <label class="form-check-label text-secondary" for="terms">
+              Eu concordo com os <a href="#" class="text-primary text-decoration-none">Termos de Uso</a> e autorizo a cobrança recorrente.
+            </label>
+          </div>
+
+          <!-- Botão Concluir -->
+          <button type="submit" class="btn btn-primary w-100 py-2.5 rounded-3 fw-semibold shadow-sm mb-3">
+            Finalizar Cadastro <i class="bi bi-arrow-right-short fs-5 align-middle"></i>
+          </button>
+
+        </form>
+
+        <!-- Link para Login -->
+        <div class="text-center mt-3 pt-3 border-top">
+          <p class="text-secondary small mb-0">
+            Já tem uma conta?
+            <a href="{{ url_for('auth.login') }}" class="text-primary text-decoration-none fw-bold">Fazer Login</a>
+          </p>
+        </div>
+
+      </div>
+
+    </div>
+  </div>
+</main>
+{% endblock %}
