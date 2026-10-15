@@ -10,3 +10,13 @@ $border-radius-lg: 0.75rem; // 12px
 // Personalização de foco nos inputs
 $input-focus-border-color: $primary;
 $input-focus-box-shadow: 0 0 0 0.25rem rgba($primary, 0.25);
+
+// Efeito Hover para os Cards da Tela Inicial
+.card-hover-effect {
+  transition: transform 0.2s ease, box-shadow 0.2s ease;
+
+  &:hover {
+    transform: translateY(-4px);
+    box-shadow: 0 0.5rem 1rem rgba(0, 0, 0, 0.1) !important;
+  }
+}

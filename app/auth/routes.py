@@ -41,3 +41,15 @@ def register():
         return redirect(url_for('auth.login'))
 
     return render_template('auth/register.html')
+
+@auth_bp.route('/forgot-password', methods=['GET', 'POST'])
+def forgot_password():
+    if request.method == 'POST':
+        email = request.form.get('email')
+
+        # LÓGICA FUTURA: VERIFICAR SE O EMAIL EXISTE  E ENVIAR O EMAIL COM TOKEN DE RECUPERAÇÃO
+
+        flash("Se o e-mail estiver cadastrado, você receberá um link com as instruções em breve.", "info")
+        return redirect(url_for('auth.login'))
+
+    return render_template('auth/forgot_password.html')
