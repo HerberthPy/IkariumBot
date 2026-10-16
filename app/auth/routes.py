@@ -1,5 +1,7 @@
 from flask import render_template, request, redirect, url_for, flash
 from app.auth import auth_bp
+from app.models import User
+from app import db
 
 @auth_bp.route('/login', methods=['GET', 'POST'])
 def login():
@@ -22,23 +24,57 @@ def login():
 @auth_bp.route('/register', methods=['GET', 'POST'])
 def register():
     if request.method == 'POST':
-        name = request.form.get('name')
+        full_name = request.form.get('name')
         email = request.form.get('email')
         password = request.form.get('password')
         confirm_password = request.form.get('confirm_password')
         plan = request.form.get('plan')              # 'basic' ou 'premium'
         payment_method = request.form.get('payment_method')
+        terms = request.form.get('terms')
 
         if password != confirm_password:
-            flash("As senhas digitadas não coincidem!", "error")
+            flash("As senhas digitadas não coincidem!", "danger")
             return redirect(url_for('auth.register'))
 
-        # Exemplo de lógica futura:
-        # 1. Salvar usuário no BD com o plano escolhido
-        # 2. Redirecionar para o gateway de pagamento (Mercado Pago, Stripe, Asaas, etc.)
+        if not terms:
+            flash('Você precisa aceitar os Termos de Uso.', 'warning')
+            return redirect(url_for('auth.register'))
 
-        flash(f"Conta criada com sucesso no plano {plan.capitalize()}! Faça login para continuar.", "success")
-        return redirect(url_for('auth.login'))
+        user = User.query.filter_by(email=email).first()
+
+        if user:
+            if user.is_active:
+                flash('Este e-mail já possui uma conta ativa. Faça login.', 'info')
+                return redirect(url_for('auth.login'))
+            else:
+                # Atualiza dados se a conta ainda não foi ativada/paga
+                user.full_name = full_name
+                user.plan = plan
+                user.payment_method = payment_method
+                user.set_password(password)
+        else:
+            user = User(
+                full_name=full_name,
+                email=email,
+                plan=plan,
+                payment_method=payment_method,
+                is_active=False,
+                payment_status='pending'
+            )
+            user.set_password(password)
+            db.session.add(user)
+
+        try:
+            db.session.commit()
+            flash('Pré-cadastro realizado! Realize o pagamento para ativar a conta.', 'success')
+            # return redirect(url_for('auth.payment_checkout', user_id=user.id))
+            return redirect(url_for('auth.login'))  # ou para a tela de checkout
+        except Exception as e:
+            db.session.rollback()
+            flash('Erro ao salvar no banco de dados.', 'danger')
+
+        # TODO: Gerar a cobrança/PIX no Gateway de Pagamento
+        # Exemplo: checkout_url = gateway.create_payment(user.id, plan, payment_method)
 
     return render_template('auth/register.html')
 
