@@ -5,7 +5,7 @@
 {% block content %}
 <!-- Navbar Superior -->
 <nav class="navbar navbar-expand-lg bg-white border-bottom shadow-sm mb-4 py-3">
-    <div class="container">
+    <div class="container d-flex justify-content-between align-items-center">
         <a class="navbar-brand d-flex align-items-center fw-bold text-primary" href="{{ url_for('main.index') }}">
             <div class="bg-primary text-white d-inline-flex align-items-center justify-content-center rounded-circle me-2" style="width: 38px; height: 38px;">
                 <i class="bi bi-robot fs-5"></i>
@@ -50,16 +50,17 @@
         {% endif %}
     {% endwith %}
 
-    <!-- Tabela / Lista de VPNs -->
+    <!-- Tabela / Lista de VPNs --> <!-- VISUALIZAÇÃO DESKTOP / TABLET (d-none d-md-block) -->
     <div class="card border-0 shadow-sm rounded-4 overflow-hidden bg-white">
-        <div class="table-responsive">
+        {% if vpns %}
+        <div class="table-responsive d-none d-md-block">
             <table class="table table-hover align-middle mb-0 w-100">
-                {% if vpns %}
                 <thead class="table-light border-bottom">
                 <tr>
                     <th scope="col" class="ps-4 py-3 text-secondary small fw-semibold">APELIDO</th>
                     <th scope="col" class="py-3 text-secondary small fw-semibold">E-MAIL DA VPN</th>
                     <th scope="col" class="py-3 text-secondary small fw-semibold">SENHA DA VPN</th>
+                    <th scope="col" class="py-3 text-secondary small fw-semibold">CAPACIDADE</th>
                     <th scope="col" class="py-3 text-secondary small fw-semibold">STATUS</th>
                     <th scope="col" class="pe-4 py-3 text-end text-secondary small fw-semibold">AÇÕES</th>
                 </tr>
@@ -99,11 +100,22 @@
                             </div>
                         </td>
 
+                        <!-- Capacidade de loobies -->
+                        <td class="py-3">
+                            {{ vpn.disponivel }} / {{ vpn.capacidade }}
+                        </td>
+
                         <!-- Status -->
                         <td class="py-3">
+                            {% if vpn.status == "ATIVA" %}
                             <span class="badge bg-success-subtle text-success rounded-pill px-3 py-2 fw-semibold small">
                                 <i class="bi bi-check-circle-fill me-1"></i> {{ vpn.status|default('INATIVA') }}
                             </span>
+                            {% else %}
+                            <span class="badge bg-danger-subtle text-danger rounded-pill px-3 py-2 fw-semibold small">
+                                <i class="bi bi-check-circle-fill me-1"></i> {{ vpn.status|default('INATIVA') }}
+                            </span>
+                            {% endif %}
                         </td>
 
                         <!-- Acoes -->
@@ -117,23 +129,96 @@
                         </td>
                     </tr>
                     {% endfor %}
-                    {% else %}
-                    <!-- Estado Vazio (Nenhuma VPN Cadastrada) -->
-                    <tr>
-                        <td colspan="5" class="text-center py-5">
-                            <div class="text-secondary mb-3">
-                                <i class="bi bi-shield-slash fs-1 opacity-50"></i>
-                            </div>
-                            <h5 class="fw-bold text-dark mb-1">Nenhuma VPN encontrada</h5>
-                            <p class="text-secondary small mb-3">Você ainda não cadastrou nenhuma conta de VPN.</p>
-                            <a href="{{ url_for('main.create_vpn') if 'create_vpn' in endpoints else '#' }}" class="btn btn-primary btn-sm rounded-3">
-                                <i class="bi bi-plus-lg me-1"></i> Cadastrar Primeira VPN
-                            </a>
-                        </td>
-                    </tr>
-                {% endif %}
                 </tbody>
             </table>
+        </div>
+
+        <!-- VISUALIZAÇÃO MOBILE (d-block d-md-none) -->
+        <div class="d-md-none">
+            {% for vpn in vpns %}
+            <div class="card mb-3 shadow-sm border-0 bg-light">
+                <div class="card-body">
+                    <!-- Cabeçalho do Card: Apelido + Badge de Status -->
+                    <div class="d-flex justify-content-between align-items-center mb-2">
+                        <h6 class="fw-bold mb-0 text-primary">
+                            <i class="bi bi-display me-1"></i> {{ vpn.apelido }}
+                        </h6>
+
+                        <!-- Badge de Status (Ativo / Inativo) -->
+                        {% if vpn.status == "ATIVA" %}
+                        <span class="badge bg-success-subtle text-success border border-success-subtle rounded-pill">
+                            <i class="bi bi-check-circle-fill me-1"></i>{{ vpn.status }}
+                        </span>
+                        {% else %}
+                        <span class="badge bg-danger-subtle text-danger border border-danger-subtle rounded-pill">
+                            <i class="bi bi-x-circle-fill me-1"></i>{{ vpn.status }}
+                        </span>
+                        {% endif %}
+                    </div>
+
+                    <div class="mb-2 text-muted small">
+                        <div class="d-flex align-items-center mb-1">
+                            <strong class="me-2">E-mail:</strong>
+                            <span class="text-break">{{ vpn.email }}</span>
+                        </div>
+
+                        <!-- CAMPO DE SENHA COM TOGGLE (MOBILE) -->
+                        <div class="d-flex align-items-center">
+                            <strong class="me-2" style="min-width: 55px;">Senha:</strong>
+                            <div class="input-group input-group-sm">
+                                <input
+                                        type="password"
+                                        class="form-control form-control-sm bg-white border-end-0 py-0"
+                                        value="{{ vpn.senha }}"
+                                        id="senha-mobile-{{ loop.index }}"
+                                        readonly
+                                >
+                                <button
+                                        class="btn btn-outline-secondary bg-white border-start-0 py-0"
+                                        type="button"
+                                        onclick="togglePassword('senha-mobile-{{ loop.index }}', 'icon-mobile-{{ loop.index }}')"
+                                >
+                                    <i class="bi bi-eye" id="icon-mobile-{{ loop.index }}"></i>
+                                </button>
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- Capacidade -->
+                    <div class="d-flex align-items-center">
+                        <strong class="me-2" style="min-width: 85px;">Capacidade:</strong>
+                        <span class="badge bg-white text-dark border">
+                            <i class="bi bi-cpu me-1 text-muted"></i>{{ vpn.uso_atual | default(5) }} / {{ vpn.limite_maximo | default(10) }}
+                        </span>
+                    </div>
+                </div>
+
+                <div class="d-flex gap-2 justify-content-end border-top pt-2 mt-2">
+                    <button class="btn btn-sm btn-outline-primary">
+                        <i class="bi bi-pencil"></i> Editar
+                    </button>
+                    <button class="btn btn-sm btn-outline-danger">
+                        <i class="bi bi-trash"></i> Eliminar
+                    </button>
+                </div>
+            </div>
+            {% endfor %}
+        </div>
+        {% else %}
+            <!-- Estado Vazio Único (Funciona no Mobile e no Desktop!) -->
+            <div class="card shadow-sm border-0 py-5 text-center">
+                <div class="card-body">
+                    <div class="text-secondary mb-3">
+                        <i class="bi bi-shield-slash fs-1 opacity-50"></i>
+                    </div>
+                    <h5 class="fw-bold text-dark mb-1">Nenhuma VPN encontrada</h5>
+                    <p class="text-secondary small mb-3">Você ainda não cadastrou nenhuma conta de VPN.</p>
+                    <a href="{{ url_for('main.create_vpn') if 'create_vpn' in endpoints else '#' }}" class="btn btn-primary btn-sm rounded-3">
+                        <i class="bi bi-plus-lg me-1"></i> Cadastrar Primeira VPN
+                    </a>
+                </div>
+            </div>
+        {% endif %}
         </div>
     </div>
 </main>

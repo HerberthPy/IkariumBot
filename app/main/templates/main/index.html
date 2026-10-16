@@ -5,7 +5,7 @@
 {% block content %}
 <!-- Navbar / Cabeçalho Superior -->
 <nav class="navbar navbar-expand-lg bg-white border-bottom shadow-sm mb-4 py-3">
-  <div class="container">
+  <div class="container d-flex justify-content-between align-items-center">
     <a class="navbar-brand d-flex align-items-center fw-bold text-primary" href="{{ url_for('main.index') }}">
       <div class="bg-primary text-white d-inline-flex align-items-center justify-content-center rounded-circle me-2" style="width: 38px; height: 38px;">
         <i class="bi bi-robot fs-5"></i>
@@ -86,7 +86,7 @@
 
     <!-- CARD 2: Módulo Lobby -->
     <div class="col-12 col-md-6">
-      <a href="{{ url_for('main.lobbies') if 'lobbies' in endpoints else '#' }}" class="text-decoration-none card-action-link">
+      <a href="{{ url_for('main.lobbies_list') }}" class="text-decoration-none card-action-link">
         <div class="card border-0 shadow-sm rounded-4 p-4 h-100 bg-white card-hover-effect">
           <div class="d-flex align-items-start justify-content-between mb-3">
             <div class="bg-primary-subtle text-primary p-3 rounded-3 d-inline-flex align-items-center justify-content-center">

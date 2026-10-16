@@ -11,17 +11,17 @@ def index():
 def vpn_list():
     # Exemplo mock de VPNs cadastradas (depois virá do BD)
     vpns = [
-        # {"id": 1, "apelido": "VPN Brasil", "email": "177.12.34.56", "senha": "Conectado", "status": "ATIVA"},
-        # {"id": 2, "apelido": "VPN EUA - Miami", "email": "104.28.19.82", "senha": "Conectado", "status": "INATIVA"}
+        {"id": 1, "apelido": "Principal Premium", "email": "herberthdesign@gmail.com", "senha": "Isabelly22@", "status": "ATIVA", "capacidade": "10", "disponivel": "5"},
+        {"id": 2, "apelido": "Secundaria", "email": "secundaria@gmail.com", "senha": "isa123", "status": "INATIVA", "capacidade": "10", "disponivel": "5"}
     ]
     return render_template('main/vpn_list.html', vpns=vpns)
 
 # Rota da lista de Lobbies
 @main_bp.route('/lobbies', methods=['GET'])
-def lobbies():
+def lobbies_list():
     # Exemplo mock de Lobbies cadastrados (depois virá do BD)
-    lobbies_list = [
-        {"id": 1, "nome": "Lobby Principal - Conta 1", "servidor": "s150-br", "status": "Rodando"},
-        {"id": 2, "nome": "Lobby Farm - Conta 2", "servidor": "s151-br", "status": "Pausado"}
+    lobbies = [
+        {"id": 1, "apelido": "Principal", "email": "herberthdesign@gmail.com", "senha": "Isabelly22@", "vpn": "Principal Premium", "contas": "5", "status": "ATIVO"},
+        {"id": 2, "apelido": "Produtor", "email": "herberthdesign@gmail.com", "senha": "Isabelly22@", "vpn": "Principal Premium", "contas": "5", "status": "INATIVO"}
     ]
-    return render_template('main/lobbies.html', lobbies=lobbies_list)
+    return render_template('main/lobbies_list.html', lobbies=lobbies)
