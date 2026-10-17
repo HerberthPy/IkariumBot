@@ -17,7 +17,7 @@ def create_app(config_class=Config):
 
     # Define para onde redirecionar utilizadores não autenticados
     login_manager.login_view = 'auth.login'
-    login_manager.login_message = 'Por favor, faça login para aceder a esta página.'
+    login_manager.login_message = ''
     login_manager.login_message_category = 'warning'
 
     # 2. Carregador de utilizador obrigatório para o Flask-Login
