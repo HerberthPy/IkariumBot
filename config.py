@@ -10,7 +10,7 @@ class Config:
     FERNET_KEY = os.environ.get('FERNET_KEY') or 'GeXkcjuM3OkR4MvZTGidZmqOkG7ZSjC31aXF-BdMGTY='
 
     # Caminho do Banco de Dados SQLite (Salvo na pasta do projeto)
-    SQLALCHEMY_DATABASE_URI = os.environ.get('DATABASE_URL') or 'sqlite:///' + os.path.join(BASE_DIR, 'app.db')
+    SQLALCHEMY_DATABASE_URI = os.environ.get('DATABASE_URL') or f"sqlite:///{os.path.join(BASE_DIR, 'app.db').replace('\\', '/')}"
 
     # Desativa rastreamento pesado de modificações para otimizar memória
     SQLALCHEMY_TRACK_MODIFICATIONS = False
