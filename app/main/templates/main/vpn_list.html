@@ -32,7 +32,7 @@
         </div>
 
         <div>
-            <a href="{{ url_for('main.create_vpn') if 'create_vpn' in endpoints else '#' }}" class="btn btn-primary rounded-3 shadow-sm py-2 px-3 fw-semibold">
+            <a href="{{ url_for('main.create_vpn') }}" class="btn btn-primary rounded-3 shadow-sm py-2 px-3 fw-semibold">
                 <i class="bi bi-plus-lg me-1"></i> Cadastrar Nova VPN
             </a>
         </div>
@@ -70,7 +70,7 @@
                     <tr>
                         <!-- Apelido -->
                         <td class="ps-4 py-3 fw-semibold text-dark">
-                            <i class="bi bi-hdd-network text-primary me-2"></i>{{ vpn.apelido }}
+                            <i class="bi bi-hdd-network text-primary me-2"></i>{{ vpn.nickname }}
                         </td>
 
                         <!-- E-mail -->
@@ -83,7 +83,7 @@
                             <div class="d-inline-flex align-items-center bg-light rounded-3 px-2 py-1 border">
                                 <input
                                         type="password"
-                                        value="{{ vpn.senha }}"
+                                        value="{{ vpn.get_password() }}"
                                         class="form-control-plaintext form-control-sm py-0 pe-2 text-secondary fw-monospace border-0"
                                         readonly
                                         id="pwd-{{ loop.index }}"
@@ -102,7 +102,7 @@
 
                         <!-- Capacidade de loobies -->
                         <td class="py-3">
-                            {{ vpn.disponivel }} / {{ vpn.capacidade }}
+                            {{ vpn.available }} / {{ vpn.capacity }}
                         </td>
 
                         <!-- Status -->
@@ -118,14 +118,39 @@
                             {% endif %}
                         </td>
 
-                        <!-- Acoes -->
+                        <!-- Ações -->
                         <td class="pe-4 py-3 text-end">
-                            <button class="btn btn-sm btn-outline-secondary rounded-3 me-1" title="Editar">
+                            <!-- Botão Alternar Status (Power) -->
+                            <form action="{{ url_for('main.toggle_vpn_status', vpn_id=vpn.id) }}" method="POST" class="d-inline">
+                                <button type="submit"
+                                        class="btn btn-sm {{ 'btn-outline-success' if vpn.status == 'INATIVA' else 'btn-outline-danger' }} rounded-3 me-1"
+                                        title="{{ 'Ativar VPN' if vpn.status == 'INATIVA' else 'Desativar VPN' }}">
+                                    <i class="bi {{ 'bi-power' if vpn.status == 'INATIVA' else 'bi-stop-fill' }}"></i>
+                                </button>
+                            </form>
+                            <!-- Botão Editar (Abre tela/modal de edição ou rota dedicada) -->
+                            <button type="button"
+                                    class="btn btn-sm btn-outline-secondary rounded-3 me-1"
+                                    title="Editar"
+                                    data-bs-toggle="modal"
+                                    data-bs-target="#editVpnModal"
+                                    data-vpn-id="{{ vpn.id }}"
+                                    data-vpn-nickname="{{ vpn.nickname }}"
+                                    data-vpn-capacity="{{ vpn.capacity }}"
+                                    data-vpn-used="{{ vpn.used }}">
                                 <i class="bi bi-pencil"></i>
                             </button>
-                            <button class="btn btn-sm btn-outline-danger rounded-3" title="Excluir">
-                                <i class="bi bi-trash"></i>
-                            </button>
+                            <!-- Botão Excluir (Dentro de um form POST por segurança) -->
+                            <form action="{{ url_for('main.delete_vpn', vpn_id=vpn.id) }}"
+                                  method="POST"
+                                  class="d-inline"
+                                  onsubmit="return confirm('Deseja realmente excluir a VPN {{ vpn.nickname }}?');">
+                                <button type="submit"
+                                        class="btn btn-sm btn-outline-danger rounded-3"
+                                        title="Excluir">
+                                    <i class="bi bi-trash"></i>
+                                </button>
+                            </form>
                         </td>
                     </tr>
                     {% endfor %}
@@ -141,7 +166,7 @@
                     <!-- Cabeçalho do Card: Apelido + Badge de Status -->
                     <div class="d-flex justify-content-between align-items-center mb-2">
                         <h6 class="fw-bold mb-0 text-primary">
-                            <i class="bi bi-display me-1"></i> {{ vpn.apelido }}
+                            <i class="bi bi-display me-1"></i> {{ vpn.nickname }}
                         </h6>
 
                         <!-- Badge de Status (Ativo / Inativo) -->
@@ -169,14 +194,14 @@
                                 <input
                                         type="password"
                                         class="form-control form-control-sm bg-white border-end-0 py-0"
-                                        value="{{ vpn.senha }}"
-                                        id="senha-mobile-{{ loop.index }}"
+                                        value="{{ vpn.get_password() }}"
+                                        id="password-mobile-{{ loop.index }}"
                                         readonly
                                 >
                                 <button
                                         class="btn btn-outline-secondary bg-white border-start-0 py-0"
                                         type="button"
-                                        onclick="togglePassword('senha-mobile-{{ loop.index }}', 'icon-mobile-{{ loop.index }}')"
+                                        onclick="togglePassword('password-mobile-{{ loop.index }}', 'icon-mobile-{{ loop.index }}')"
                                 >
                                     <i class="bi bi-eye" id="icon-mobile-{{ loop.index }}"></i>
                                 </button>
@@ -188,18 +213,43 @@
                     <div class="d-flex align-items-center">
                         <strong class="me-2" style="min-width: 85px;">Capacidade:</strong>
                         <span class="badge bg-white text-dark border">
-                            <i class="bi bi-cpu me-1 text-muted"></i>{{ vpn.uso_atual | default(5) }} / {{ vpn.limite_maximo | default(10) }}
+                            <i class="bi bi-cpu me-1 text-muted"></i>{{ vpn.available | default(5) }} / {{ vpn.capacity | default(10) }}
                         </span>
                     </div>
                 </div>
 
                 <div class="d-flex gap-2 justify-content-end border-top pt-2 mt-2">
-                    <button class="btn btn-sm btn-outline-primary">
+                    <!-- Botão de Alternar Status (Ativar / Desativar) -->
+                    <form action="{{ url_for('main.toggle_vpn_status', vpn_id=vpn.id) }}" method="POST" class="d-inline">
+                        <button type="submit"
+                                class="btn btn-sm {{ 'btn-outline-success' if vpn.status == 'INATIVA' else 'btn-outline-danger' }} rounded-3"
+                                title="{{ 'Ativar VPN' if vpn.status == 'INATIVA' else 'Desativar VPN' }}">
+                            <i class="bi {{ 'bi-power' if vpn.status == 'INATIVA' else 'bi-pause-fill' }}"></i>
+                            {{ 'Ativar' if vpn.status == 'INATIVA' else 'Desativar' }}
+                        </button>
+                    </form>
+
+                    <!-- Botão Editar (Com '#' temporário) -->
+                    <button type="button"
+                            class="btn btn-sm btn-outline-secondary rounded-3"
+                            title="Editar"
+                            data-bs-toggle="modal"
+                            data-bs-target="#editVpnModal"
+                            data-vpn-id="{{ vpn.id }}"
+                            data-vpn-nickname="{{ vpn.nickname }}"
+                            data-vpn-capacity="{{ vpn.capacity }}"
+                            data-vpn-used="{{ vpn.used }}">
                         <i class="bi bi-pencil"></i> Editar
                     </button>
-                    <button class="btn btn-sm btn-outline-danger">
-                        <i class="bi bi-trash"></i> Eliminar
-                    </button>
+                    <!-- Botão Eliminar / Excluir -->
+                    <form action="{{ url_for('main.delete_vpn', vpn_id=vpn.id) }}"
+                          method="POST"
+                          class="d-inline"
+                          onsubmit="return confirm('Deseja realmente excluir a VPN {{ vpn.nickname }}?');">
+                        <button type="submit" class="btn btn-sm btn-outline-danger rounded-3" title="Eliminar">
+                            <i class="bi bi-trash"></i> Eliminar
+                        </button>
+                    </form>
                 </div>
             </div>
             {% endfor %}
@@ -213,12 +263,54 @@
                     </div>
                     <h5 class="fw-bold text-dark mb-1">Nenhuma VPN encontrada</h5>
                     <p class="text-secondary small mb-3">Você ainda não cadastrou nenhuma conta de VPN.</p>
-                    <a href="{{ url_for('main.create_vpn') if 'create_vpn' in endpoints else '#' }}" class="btn btn-primary btn-sm rounded-3">
+                    <a href="{{ url_for('main.create_vpn') }}" class="btn btn-primary btn-sm rounded-3">
                         <i class="bi bi-plus-lg me-1"></i> Cadastrar Primeira VPN
                     </a>
                 </div>
             </div>
         {% endif %}
+        </div>
+    </div>
+
+    <!-- Modal de Edição de VPN -->
+    <div class="modal fade" id="editVpnModal" tabindex="-1" aria-labelledby="editVpnModalLabel" aria-hidden="true">
+        <div class="modal-dialog modal-dialog-centered">
+            <div class="modal-content rounded-3 border-0 shadow">
+                <div class="modal-header">
+                    <h5 class="modal-title fw-bold" id="editVpnModalLabel">Editar VPN</h5>
+                    <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+                </div>
+
+                <form id="editVpnForm" method="POST" action="">
+                    <div class="modal-body">
+                        <!-- Apelido -->
+                        <div class="mb-3">
+                            <label for="edit_nickname" class="form-label">Apelido</label>
+                            <input type="text" class="form-control" id="edit_nickname" name="nickname" required>
+                        </div>
+
+                        <!-- Nova Senha -->
+                        <div class="mb-3">
+                            <label for="edit_password" class="form-label">Nova Senha (opcional)</label>
+                            <input type="password" class="form-control" id="edit_password" name="password" placeholder="Deixe em branco para manter a atual">
+                        </div>
+
+                        <!-- Capacidade -->
+                        <div class="mb-3">
+                            <label for="edit_capacity" class="form-label">Capacidade de Lobbies</label>
+                            <input type="number" class="form-control" id="edit_capacity" name="capacity" min="1" required>
+                            <div class="form-text">
+                                Em uso atualmente: <strong id="edit_used_info">0</strong> lobby(s).
+                            </div>
+                        </div>
+                    </div>
+
+                    <div class="modal-footer">
+                        <button type="button" class="btn btn-outline-secondary" data-bs-dismiss="modal">Cancelar</button>
+                        <button type="submit" class="btn btn-primary">Salvar Alterações</button>
+                    </div>
+                </form>
+            </div>
         </div>
     </div>
 </main>
@@ -246,6 +338,33 @@
       icon.classList.add('text-secondary');
     }
   }
+</script>
+
+<script>
+document.addEventListener('DOMContentLoaded', function() {
+    const editModal = document.getElementById('editVpnModal');
+    if (editModal) {
+        editModal.addEventListener('show.bs.modal', function(event) {
+            const button = event.relatedTarget;
+
+            // Extrai as informações dos atributos data-* do botão clicado
+            const vpnId = button.getAttribute('data-vpn-id');
+            const nickname = button.getAttribute('data-vpn-nickname');
+            const capacity = button.getAttribute('data-vpn-capacity');
+            const used = button.getAttribute('data-vpn-used');
+
+            // Atualiza a ação do formulário com a URL correta de submissão
+            const form = document.getElementById('editVpnForm');
+            form.action = `/vpns/${vpnId}/editar`;
+
+            // Preenche os campos do modal
+            document.getElementById('edit_nickname').value = nickname;
+            document.getElementById('edit_capacity').value = capacity;
+            document.getElementById('edit_password').value = ''; // limpa o campo de senha
+            document.getElementById('edit_used_info').textContent = used;
+        });
+    }
+});
 </script>
 
 {% endblock %}

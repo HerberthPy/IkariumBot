@@ -35,7 +35,7 @@ def create_app(config_class=Config):
     app.register_blueprint(main_bp)
 
     with app.app_context():
-        from app import models
+        from app.models import User, VPN
         db.create_all()
 
     # Registra handlers de erro globais

@@ -4,6 +4,7 @@ from app.auth import auth_bp
 from app.models import User
 from app import db
 
+
 @auth_bp.route('/login', methods=['GET', 'POST'])
 def login():
     # Se o usuário já estiver logado, redireciona para o painel/dashboard
@@ -11,7 +12,7 @@ def login():
         return redirect(url_for('main.index'))
 
     if request.method == 'POST':
-        email = request.form.get('email')
+        email = request.form.get('email', '').strip().lower()
         password = request.form.get('password')
         remember = True if request.form.get('remember') else False
 
@@ -35,19 +36,20 @@ def login():
 
     return render_template('auth/login.html')
 
+
 @auth_bp.route('/register', methods=['GET', 'POST'])
 def register():
     if request.method == 'POST':
-        print("--- FORMULÁRIO RECEBIDO ---")
-        full_name = request.form.get('name')
-        email = request.form.get('email')
+        full_name = request.form.get('name', '').strip()
+        email = request.form.get('email', '').strip().lower()
         password = request.form.get('password')
         confirm_password = request.form.get('confirm_password')
-        plan = request.form.get('plan')              # 'basic' ou 'premium'
+        plan = request.form.get('plan', 'basico')  # 'basico' ou 'premium'
+        plan_cycle = request.form.get('plan_cycle', 'mensal')  # 'mensal' ou 'anual'
         payment_method = request.form.get('payment_method')
         terms = request.form.get('terms')
-        print(full_name, email, password, confirm_password, plan, payment_method, terms)
 
+        # Validações dos campos
         if password != confirm_password:
             flash("As senhas digitadas não coincidem!", "danger")
             return redirect(url_for('auth.register'))
@@ -63,45 +65,50 @@ def register():
                 flash('Este e-mail já possui uma conta ativa. Faça login.', 'info')
                 return redirect(url_for('auth.login'))
             else:
-                # Atualiza dados se a conta ainda não foi ativada/paga
+                # Atualiza os dados da conta pendente
                 user.full_name = full_name
-                user.plan = plan
                 user.payment_method = payment_method
                 user.set_password(password)
+                # Recalcula a data de expiração e o ciclo do plano no fuso de Brasília
+                user.activate_plan(plan_type=plan, plan_cycle=plan_cycle)
         else:
+            # Cria a nova instância do Usuário
             user = User(
                 full_name=full_name,
                 email=email,
-                plan=plan,
                 payment_method=payment_method,
-                is_active=False,
-                payment_status='pending'
+                is_active=True,  # Permite acesso inicial / controle por status
+                payment_status='pago'  # Marca como pago para liberar os módulos
             )
             user.set_password(password)
+            # Define o plano, ciclo e calcula a expiração de 30 ou 365 dias
+            user.activate_plan(plan_type=plan, plan_cycle=plan_cycle)
+
             db.session.add(user)
 
-        # O try/except PRECISA estar indentado dentro do if request.method == 'POST'
         try:
             db.session.commit()
-            flash('Pré-cadastro realizado! Realize o pagamento para ativar a conta.', 'success')
+            flash('Cadastro realizado com sucesso! Faça login para acessar sua conta.', 'success')
             return redirect(url_for('auth.login'))
         except Exception as e:
             db.session.rollback()
-            flash('Erro ao salvar no banco de dados.', 'danger')
+            flash('Erro ao salvar os dados no banco de dados. Tente novamente.', 'danger')
 
     return render_template('auth/register.html')
+
 
 @auth_bp.route('/forgot-password', methods=['GET', 'POST'])
 def forgot_password():
     if request.method == 'POST':
         email = request.form.get('email')
 
-        # LÓGICA FUTURA: VERIFICAR SE O EMAIL EXISTE  E ENVIAR O EMAIL COM TOKEN DE RECUPERAÇÃO
+        # LÓGICA FUTURA: VERIFICAR SE O EMAIL EXISTE E ENVIAR O EMAIL COM TOKEN DE RECUPERAÇÃO
 
         flash("Se o e-mail estiver cadastrado, você receberá um link com as instruções em breve.", "info")
         return redirect(url_for('auth.login'))
 
     return render_template('auth/forgot_password.html')
+
 
 @auth_bp.route('/logout')
 @login_required
@@ -109,4 +116,3 @@ def logout():
     logout_user()
     flash('Você saiu da sua conta.', 'info')
     return redirect(url_for('auth.login'))
-
