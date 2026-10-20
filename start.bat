@@ -7,7 +7,7 @@ call npm install
 echo Compilando CSS...
 call npm run build-css
 
-:: 1. Verifica se a pasta .venv já existe
+:: 1. Verifica se a pasta .venv ja existe
 if not exist ".venv" (
     echo Criando o ambiente virtual .venv...
     py -m venv .venv
@@ -18,9 +18,10 @@ if not exist ".venv" (
     )
 )
 
+:: 2. Ativa o ambiente virtual (Uso do activate.bat para scripts Batch)
+call .\.venv\Scripts\activate.bat
+
 if defined VIRTUAL_ENV (
-    :: 2. Ativa o ambiente virtual
-    .\.venv\Scripts\Activate.ps1
     echo Ambiente virtual ativado com sucesso!
 ) else (
     echo Falha ao ativar o ambiente virtual.
@@ -36,4 +37,3 @@ if exist "requirements.txt" (
 ) else (
     echo Arquivo requirements.txt nao encontrado. Pulando instalacao de dependencias.
 )
-
