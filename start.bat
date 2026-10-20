@@ -18,10 +18,9 @@ if not exist ".venv" (
     )
 )
 
-:: 2. Ativa o ambiente virtual
-call .venv\Scripts\activate.bat
-
 if defined VIRTUAL_ENV (
+    :: 2. Ativa o ambiente virtual
+    .\.venv\Scripts\Activate.ps1
     echo Ambiente virtual ativado com sucesso!
 ) else (
     echo Falha ao ativar o ambiente virtual.
