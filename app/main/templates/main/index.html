@@ -37,7 +37,7 @@
       <div class="col-md-8">
         <h2 class="h3 fw-bold text-dark mb-2">Painel de Controle</h2>
         <p class="text-secondary mb-0">
-          Selecione qual módulo deseja gerenciar. Você pode configurar suas conexões VPN e gerenciar seus lobbies de bots.
+          Selecione qual módulo deseja gerenciar. Você pode sincronizar suas conexões de Proxy do Webshare e gerenciar seus lobbies de bots.
         </p>
       </div>
       <div class="col-md-4 text-md-end mt-3 mt-md-0 d-none d-md-block">
@@ -72,17 +72,17 @@
   <!-- Grid de Botões / Módulos Principais (Estilo Cards Clicáveis) -->
   <div class="row g-4">
 
-    <!-- CARD 1: Módulo VPN -->
+    <!-- CARD 1: Módulo PROXY -->
     <div class="col-12 col-md-6">
       {% if not is_disabled %}
-        <a href="{{ url_for('main.vpn_list') }}" class="text-decoration-none card-action-link">
+        <a href="{{ url_for('main.proxies_list') }}" class="text-decoration-none card-action-link">
       {% else %}
         <div class="text-decoration-none pe-none">
       {% endif %}
           <div class="card border-0 shadow-sm rounded-4 p-4 h-100 bg-white {{ 'opacity-50' if is_disabled else 'card-hover-effect' }}">
             <div class="d-flex align-items-start justify-content-between mb-3">
               <div class="{{ 'bg-secondary-subtle text-secondary' if is_disabled else 'bg-primary-subtle text-primary' }} p-3 rounded-3 d-inline-flex align-items-center justify-content-center">
-                <i class="bi bi-shield-lock-fill fs-3"></i>
+                <i class="bi bi-diagram-3-fill fs-3"></i>
               </div>
 
               {% if is_disabled %}
@@ -96,9 +96,9 @@
               {% endif %}
             </div>
 
-            <h3 class="h5 fw-bold text-dark mb-2">Módulo VPN</h3>
+            <h3 class="h5 fw-bold text-dark mb-2">Módulo Proxies</h3>
             <p class="text-secondary small mb-4">
-              Gerencie e cadastre redes privadas virtuais (VPNs) para alterar e proteger os endereços IP utilizados pelos seus bots.
+              Sincronize e gerencie sua lista de proxies do Webshare para isolar a rede e proteger a conexão de cada um dos seus bots.
             </p>
 
             <div class="mt-auto d-flex align-items-center justify-content-between pt-3 border-top">

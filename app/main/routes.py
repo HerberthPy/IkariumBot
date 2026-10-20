@@ -1,9 +1,11 @@
-from flask import render_template, request, redirect, url_for, flash
+from flask import render_template, request, redirect, url_for, flash, current_app
 from flask_login import login_required, current_user
-from app.models import VPN, Lobby
 from app import db
+from app.models import Proxy, Lobby
 from app.main import main_bp
 from app.main.decorators import module_required
+from app.main.tasks import sync_webshare_job
+
 
 @main_bp.route('/')
 @main_bp.route('/index')
@@ -11,7 +13,11 @@ from app.main.decorators import module_required
 def index():
     return render_template('main/index.html', user=current_user)
 
-# Rota da lista de Lobbies
+
+# ==========================================
+# ROTAS DE LOBBIES
+# ==========================================
+
 @main_bp.route('/lobbies', methods=['GET'])
 @login_required
 @module_required
@@ -22,49 +28,50 @@ def lobbies_list():
         if hasattr(lobby, 'get_password'):
             lobby.decrypted_password = lobby.get_password()
 
-    # Busca VPNs ativas para exibir nos modais de edição
-    vpns_ativas = VPN.query.filter_by(user_id=current_user.id, status='ATIVA').all()
+    # Busca APENAS os proxies ativos do usuário para os modais de edição
+    proxies_ativos = Proxy.query.filter_by(user_id=current_user.id, status='ATIVO').all()
 
-    return render_template('main/lobbies_list.html', lobbies=lobbies, vpns_ativas=vpns_ativas)
+    return render_template('main/lobbies_list.html', lobbies=lobbies, proxies_ativas=proxies_ativos)
 
-# Rota de cadastro dos lobbies
+
 @main_bp.route('/lobbies/novo', methods=['GET', 'POST'])
 @login_required
 @module_required
 def create_lobby():
     if request.method == 'POST':
-        nickname = request.form.get('nickname')
-        email = request.form.get('email')
+        nickname = request.form.get('nickname', '').strip()
+        email = request.form.get('email', '').strip().lower()
         password = request.form.get('password')
-        country = request.form.get('country')
-        vpn_id = request.form.get('vpn_id')
+        proxy_id = request.form.get('proxy_id', type=int)
 
-        # 1. Validação do Limite do Plano Básico (Apenas 1 Lobby)
+        # 1. Validação do Limite do Plano Básico
         if len(current_user.lobbies) >= current_user.max_allowed_lobbies:
-            flash(f"O seu plano ({current_user.plan.title()}) permite no máximo {current_user.max_allowed_lobbies} lobby. Atualize para o Plano Premium!", "warning")
+            flash(
+                f"O seu plano ({current_user.plan.title()}) permite no máximo {current_user.max_allowed_lobbies} lobby. Atualize para o Plano Premium!",
+                "warning"
+            )
             return redirect(url_for('main.lobbies_list'))
 
-        vpn = VPN.query.filter_by(id=vpn_id, user_id=current_user.id).first()
-        if not vpn:
-            flash("VPN selecionada não foi encontrada.", "danger")
+        proxy = Proxy.query.filter_by(id=proxy_id, user_id=current_user.id).first()
+        if not proxy:
+            flash("Proxy selecionado não foi encontrado.", "danger")
             return redirect(url_for('main.lobbies_list'))
 
-        # 2. Validação: A VPN precisa estar ATIVA
-        if vpn.status != 'ATIVA':
-            flash(f"A VPN '{vpn.nickname}' está inativa e não pode ser vinculada.", "danger")
+        # 2. Validação: O Proxy precisa estar ATIVO
+        if proxy.status != 'ATIVO':
+            flash("O Proxy selecionado está inativo.", "danger")
             return redirect(url_for('main.lobbies_list'))
 
-        # 3. Validação: Capacidade máxima da VPN
-        if vpn.available <= 0:
-            flash(f"A VPN '{vpn.nickname}' atingiu a capacidade máxima ({vpn.capacity} lobbies).", "danger")
+        # 3. Validação: Vagas disponíveis no Proxy
+        if proxy.available <= 0:
+            flash(f"O Proxy '{proxy.address}:{proxy.port}' já está em uso.", "danger")
             return redirect(url_for('main.lobbies_list'))
 
-        # Criação do Lobby
+        # Criação do Lobby vinculado ao Proxy
         novo_lobby = Lobby(
             nickname=nickname,
             email=email,
-            country=country,
-            vpn_id=vpn.id,
+            proxy_id=proxy.id,
             user_id=current_user.id,
             status='ATIVO'
         )
@@ -73,14 +80,15 @@ def create_lobby():
         db.session.add(novo_lobby)
         db.session.commit()
 
-        flash("Lobby criado e vinculado com sucesso!", "success")
+        flash("Lobby criado e vinculado ao Proxy com sucesso!", "success")
         return redirect(url_for('main.lobbies_list'))
 
-    # GET: Busca VPNs ativas do usuário e filtra apenas as que têm vagas disponíveis
-    vpns_ativas = VPN.query.filter_by(user_id=current_user.id, status='ATIVA').all()
-    vpns_disponiveis = [vpn for vpn in vpns_ativas if vpn.available > 0]
+    # GET: Filtra proxies ativos do usuário que possuem vagas disponíveis
+    proxies_ativos = Proxy.query.filter_by(user_id=current_user.id, status='ATIVO').all()
+    proxies_disponiveis = [p for p in proxies_ativos if p.available > 0]
 
-    return render_template('main/create_lobby.html', vpns_disponiveis=vpns_disponiveis)
+    return render_template('main/create_lobby.html', vpns_disponiveis=proxies_disponiveis)
+
 
 @main_bp.route('/lobbies/<int:lobby_id>/editar', methods=['POST'])
 @login_required
@@ -91,33 +99,32 @@ def edit_lobby(lobby_id):
     nickname = request.form.get('nickname', '').strip()
     email = request.form.get('email', '').strip().lower()
     password = request.form.get('password', '').strip()
-    vpn_id = request.form.get('vpn_id', type=int)
+    proxy_id = request.form.get('proxy_id', type=int)
 
     if not nickname or not email:
         flash('Apelido e E-mail são obrigatórios.', 'danger')
         return redirect(url_for('main.lobbies_list'))
 
-    # Se a VPN foi alterada, valida a disponibilidade e status da nova VPN
-    if vpn_id and vpn_id != lobby.vpn_id:
-        nova_vpn = VPN.query.filter_by(id=vpn_id, user_id=current_user.id).first()
-        if not nova_vpn:
-            flash('VPN selecionada não encontrada.', 'danger')
+    # Se o Proxy foi alterado, valida a disponibilidade do novo proxy
+    if proxy_id and proxy_id != lobby.proxy_id:
+        novo_proxy = Proxy.query.filter_by(id=proxy_id, user_id=current_user.id).first()
+        if not novo_proxy:
+            flash('Proxy selecionado não foi encontrado.', 'danger')
             return redirect(url_for('main.lobbies_list'))
 
-        if nova_vpn.status != 'ATIVA':
-            flash(f'A VPN "{nova_vpn.nickname}" está inativa.', 'danger')
+        if novo_proxy.status != 'ATIVO':
+            flash('O Proxy selecionado está inativo.', 'danger')
             return redirect(url_for('main.lobbies_list'))
 
-        if nova_vpn.available <= 0:
-            flash(f'A VPN "{nova_vpn.nickname}" atingiu a capacidade máxima.', 'danger')
+        if novo_proxy.available <= 0:
+            flash('O Proxy selecionado já atingiu a capacidade máxima.', 'danger')
             return redirect(url_for('main.lobbies_list'))
 
-        lobby.vpn_id = nova_vpn.id
+        lobby.proxy_id = novo_proxy.id
 
     lobby.nickname = nickname
     lobby.email = email
 
-    # Atualiza a senha apenas se o usuário tiver preenchido o campo
     if password:
         lobby.set_password(password)
 
@@ -125,13 +132,13 @@ def edit_lobby(lobby_id):
     flash(f'Lobby "{lobby.nickname}" atualizado com sucesso!', 'success')
     return redirect(url_for('main.lobbies_list'))
 
+
 @main_bp.route('/lobbies/<int:lobby_id>/deletar', methods=['POST'])
 @login_required
 @module_required
 def delete_lobby(lobby_id):
     lobby = Lobby.query.filter_by(id=lobby_id, user_id=current_user.id).first_or_404()
 
-    # Validação: se o lobby tiver contas associadas, impede a exclusão
     if hasattr(lobby, 'contas') and len(lobby.contas) > 0:
         flash(f'Não é possível excluir o lobby "{lobby.nickname}" pois ele possui {len(lobby.contas)} conta(s) vinculada(s).', 'danger')
         return redirect(url_for('main.lobbies_list'))
@@ -147,6 +154,7 @@ def delete_lobby(lobby_id):
 
     return redirect(url_for('main.lobbies_list'))
 
+
 @main_bp.route('/lobbies/<int:lobby_id>/toggle-status', methods=['POST'])
 @login_required
 @module_required
@@ -157,9 +165,9 @@ def toggle_lobby_status(lobby_id):
         lobby.status = 'INATIVO'
         flash(f'Lobby "{lobby.nickname}" alterado para INATIVO.', 'warning')
     else:
-        # Se a VPN vinculada estiver inativa, impede a ativação do lobby
-        if lobby.vpn and lobby.vpn.status != 'ATIVA':
-            flash(f'Não é possível ativar o lobby "{lobby.nickname}" pois a VPN "{lobby.vpn.nickname}" está inativa.', 'danger')
+        # Trava: Não permite ativar se o proxy estiver Inativo ou se não existir proxy
+        if not lobby.proxy or lobby.proxy.status != 'ATIVO':
+            flash(f'Não é possível ativar o lobby "{lobby.nickname}" pois o Proxy vinculado está inativo.', 'danger')
             return redirect(url_for('main.lobbies_list'))
 
         lobby.status = 'ATIVO'
@@ -168,117 +176,39 @@ def toggle_lobby_status(lobby_id):
     db.session.commit()
     return redirect(url_for('main.lobbies_list'))
 
-# Rota da lista de VPNs
-@main_bp.route('/vpns', methods=['GET'])
+
+# ==========================================
+# ROTAS DE PROXIES (WEBSHARE)
+# ==========================================
+
+@main_bp.route('/proxies', methods=['GET'])
 @login_required
 @module_required
-def vpn_list():
-    vpns = VPN.query.filter_by(user_id=current_user.id).all()
-    return render_template('main/vpn_list.html', vpns=vpns)
+def proxy_list():
+    """Lista apenas os proxies ATIVOS sincronizados do usuário."""
+    # ANTES: proxies = Proxy.query.filter_by(user_id=current_user.id).all()
+    proxies = Proxy.query.filter_by(user_id=current_user.id, status='ATIVO').all()
+    return render_template('main/proxy_list.html', proxies=proxies)
 
-# Rota criar VPN
-@main_bp.route('/vpns/nova', methods=['GET', 'POST'])
+
+# Alias para retrocompatibilidade caso alguma rota antiga chame proxies_list
+@main_bp.route('/proxies-list', methods=['GET'])
 @login_required
 @module_required
-def create_vpn():
-    if request.method == 'POST':
-        nickname = request.form.get('nickname', '').strip()
-        email = request.form.get('email', '').strip().lower()
-        password = request.form.get('password')
-        status = request.form.get('status', 'ATIVA')
+def proxies_list():
+    return redirect(url_for('main.proxy_list'))
 
-        capacity = request.form.get('capacity', type=int) or 10
 
-        # Verifica se esta VPN já existe para o usuário logado
-        existing_vpn = VPN.query.filter_by(email=email, user_id=current_user.id).first()
-
-        if existing_vpn:
-            flash('Você já cadastrou uma VPN com este e-mail. Verifique os dados.', 'warning')
-            return redirect(url_for('main.vpn_list'))
-
-        new_vpn = VPN(
-            nickname=nickname,
-            email=email,
-            capacity=capacity,
-            status=status,
-            user_id=current_user.id
-        )
-
-        new_vpn.set_password(password)
-        db.session.add(new_vpn)
-        db.session.commit()
-
-        flash('VPN cadastrada com sucesso!', 'success')
-        return redirect(url_for('main.vpn_list'))
-
-    return render_template('main/create_vpn.html')
-
-@main_bp.route('/vpns/<int:vpn_id>/deletar', methods=['POST'])
+@main_bp.route('/proxies/sincronizar', methods=['POST', 'GET'])
 @login_required
 @module_required
-def delete_vpn(vpn_id):
-    vpn = VPN.query.filter_by(id=vpn_id, user_id=current_user.id).first_or_404()
-
-    # Validação: Impede exclusão se houver lobbies vinculados
-    if vpn.used > 0:
-        flash(f'Não é possível excluir a VPN "{vpn.nickname}" pois ela possui {vpn.used} lobby(ies) vinculado(s).', 'danger')
-        return redirect(url_for('main.vpn_list'))
-
+def sync_proxies():
+    """Executa a sincronização manual acionando a mesma rotina (job) do APScheduler."""
     try:
-        db.session.delete(vpn)
-        db.session.commit()
-        flash('VPN removida com sucesso!', 'success')
-    except Exception:
-        db.session.rollback()
-        flash('Ocorreu um erro ao tentar excluir a VPN.', 'danger')
+        app = current_app._get_current_object()
+        sync_webshare_job(app)
+        flash('Proxies sincronizados com sucesso via API do Webshare!', 'success')
+    except Exception as e:
+        flash(f'Erro ao sincronizar proxies: {str(e)}', 'danger')
 
-    return redirect(url_for('main.vpn_list'))
-
-@main_bp.route('/vpns/<int:vpn_id>/editar', methods=['POST'])
-@login_required
-@module_required
-def edit_vpn(vpn_id):
-    vpn = VPN.query.filter_by(id=vpn_id, user_id=current_user.id).first_or_404()
-
-    new_capacity = request.form.get('capacity', type=int)
-
-    if new_capacity is None or new_capacity < vpn.used:
-        flash(
-            f'Não é possível reduzir a capacidade para {new_capacity}. '
-            f'Existem {vpn.used} lobby(s) usando esta VPN.',
-            'danger'
-        )
-        return redirect(url_for('main.vpn_list'))
-
-    vpn.nickname = request.form.get('nickname', '').strip()
-
-    password = request.form.get('password', '').strip()
-    if password:
-        vpn.set_password(password)
-
-    vpn.capacity = new_capacity
-
-    db.session.commit()
-    flash(f'VPN "{vpn.nickname}" atualizada com sucesso!', 'success')
-    return redirect(url_for('main.vpn_list'))
-
-@main_bp.route('/vpns/<int:vpn_id>/toggle-status', methods=['POST'])
-@login_required
-@module_required
-def toggle_vpn_status(vpn_id):
-    vpn = VPN.query.filter_by(id=vpn_id, user_id=current_user.id).first_or_404()
-
-    # Alterna o status
-    if vpn.status == 'ATIVA':
-        vpn.status = 'INATIVA'
-        # Inativa em cascata todos os lobbies vinculados a esta VPN
-        for lobby in vpn.lobbies:
-            lobby.status = 'INATIVA'
-        flash(f'VPN "{vpn.nickname}" inativada. {vpn.used} lobby(ies) vinculado(s) também foram inativados.', 'warning')
-    else:
-        vpn.status = 'ATIVA'
-        flash(f'Status da VPN "{vpn.nickname}" alterado para ATIVA.', 'success')
-
-    db.session.commit()
-    return redirect(url_for('main.vpn_list'))
-
+    return redirect(url_for('main.proxy_list'))

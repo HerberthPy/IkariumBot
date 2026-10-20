@@ -8,4 +8,5 @@ main_bp = Blueprint(
     static_url_path='/main/static'
 )
 
+# Importação das rotas no final para evitar circular imports
 from app.main import routes

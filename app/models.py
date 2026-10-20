@@ -13,6 +13,7 @@ def get_brasilia_time():
     tz = pytz.timezone('America/Sao_Paulo')
     return datetime.now(tz)
 
+
 class User(UserMixin, db.Model):
     __tablename__ = 'users'
 
@@ -33,7 +34,7 @@ class User(UserMixin, db.Model):
     expires_at = db.Column(db.DateTime, nullable=True)
 
     # Relacionamentos
-    vpns = db.relationship('VPN', backref='owner', lazy=True, cascade='all, delete-orphan')
+    proxies = db.relationship('Proxy', backref='owner', lazy=True, cascade='all, delete-orphan')
     lobbies = db.relationship('Lobby', backref='owner', lazy=True, cascade='all, delete-orphan')
 
     def set_password(self, password):
@@ -89,52 +90,55 @@ class User(UserMixin, db.Model):
             return 1
         return 9999
 
-    @property
-    def free_vpns_included(self):
-        """Plano Básico = 0 VPNs grátis | Premium = 1 VPN grátis inclusa."""
-        if self.plan == 'premium':
-            return 1
-        return 0
 
 def get_cipher():
-    # Cria uma chave determinística de 32 bytes a partir da SECRET_KEY do Flask
+    """Retorna o objeto Fernet usando FERNET_KEY ou derivando de SECRET_KEY."""
+    fernet_key = current_app.config.get('FERNET_KEY')
+    if fernet_key:
+        return Fernet(fernet_key.encode('utf-8'))
+
     secret = current_app.config['SECRET_KEY'].encode('utf-8')
     key = base64.urlsafe_b64encode(secret.ljust(32)[:32])
     return Fernet(key)
 
-class VPN(db.Model):
-    __tablename__ = 'vpns'
+
+class Proxy(db.Model):
+    __tablename__ = 'proxies'
 
     id = db.Column(db.Integer, primary_key=True)
-    nickname = db.Column(db.String(100), nullable=False)
-    email = db.Column(db.String(120), nullable=False)
-    password_encrypted = db.Column(db.String(255), nullable=False)
-    status = db.Column(db.String(20), default='INATIVA')
-    capacity = db.Column(db.Integer, default=10, nullable=False)
+    address = db.Column(db.String(100), nullable=False)  # Endereço IP / Host
+    port = db.Column(db.Integer, nullable=False)  # Porta HTTP/SOCKS5
+    username = db.Column(db.String(100), nullable=False)  # Usuário do Webshare
+    password_encrypted = db.Column(db.String(255), nullable=False)  # Senha Criptografada
+    country = db.Column(db.String(10), nullable=True)  # Código do país (ex: BR, US)
+    status = db.Column(db.String(20), default='ATIVO')  # 'ATIVO' ou 'INATIVO'
+    capacity = db.Column(db.Integer, default=1, nullable=False)  # Qtd de Lobbies permitidos por proxy
     created_at = db.Column(db.DateTime, default=get_brasilia_time)
+
+    # Chave Estrangeira (FK do Usuário Dono)
     user_id = db.Column(db.Integer, db.ForeignKey('users.id'), nullable=False)
 
     # Relacionamento com Lobbies
-    lobbies = db.relationship('Lobby', backref='vpn', lazy=True)
+    lobbies = db.relationship('Lobby', backref='proxy', lazy=True)
 
     @property
     def used(self):
-        """Retorna a quantidade de lobbies atualmente usando esta VPN."""
+        """Retorna a quantidade de lobbies atualmente usando este Proxy."""
         return len(self.lobbies)
 
     @property
     def available(self):
-        """Calcula dinamicamente as vagas restantes na VPN."""
+        """Calcula dinamicamente as vagas restantes no Proxy."""
         return max(0, self.capacity - self.used)
 
     def set_password(self, password):
-        """Criptografa a senha antes de salvar."""
+        """Criptografa a senha do proxy antes de salvar."""
         if password:
             cipher = get_cipher()
             self.password_encrypted = cipher.encrypt(password.encode('utf-8')).decode('utf-8')
 
     def get_password(self):
-        """Descriptografa a senha para exibir na tela."""
+        """Descriptografa a senha do proxy para uso nas chamadas do bot ou exibição."""
         if not self.password_encrypted:
             return ""
         try:
@@ -143,6 +147,11 @@ class VPN(db.Model):
         except (InvalidToken, Exception):
             return self.password_encrypted
 
+    def get_proxy_url(self):
+        """Retorna a string completa formatada para Playwright/Requests (ex: http://user:pass@ip:port)."""
+        return f"http://{self.username}:{self.get_password()}@{self.address}:{self.port}"
+
+
 class Lobby(db.Model):
     __tablename__ = 'lobbies'
 
@@ -150,13 +159,19 @@ class Lobby(db.Model):
     nickname = db.Column(db.String(100), nullable=False)  # APELIDO
     email = db.Column(db.String(120), nullable=False)  # E-MAIL
     password_encrypted = db.Column(db.String(255), nullable=False)  # SENHA CRIPTOGRAFADA
-    country = db.Column(db.String(100), nullable=False)  # PAÍS DE CONEXÃO
-    status = db.Column(db.String(20), default='ATIVA')  # 'ATIVA' ou 'INATIVA'
+    status = db.Column(db.String(20), default='ATIVO')  # 'ATIVO' ou 'INATIVO'
     created_at = db.Column(db.DateTime, default=get_brasilia_time)
 
     # Chaves Estrangeiras (FK)
     user_id = db.Column(db.Integer, db.ForeignKey('users.id'), nullable=False)
-    vpn_id = db.Column(db.Integer, db.ForeignKey('vpns.id'), nullable=False)
+    proxy_id = db.Column(db.Integer, db.ForeignKey('proxies.id'), nullable=True)
+
+    @property
+    def country(self):
+        """Herda dinamicamente o código do país a partir do Proxy vinculado."""
+        if self.proxy and self.proxy.country:
+            return self.proxy.country
+        return "N/A"
 
     def set_password(self, password):
         """Criptografa a senha do lobby antes de salvar."""
