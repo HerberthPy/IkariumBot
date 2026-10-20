@@ -1,0 +1,12 @@
+.card-hover-effect {
+  transition: transform 0.2s ease, box-shadow 0.2s ease, border-color 0.2s ease;
+  background-color: #f0e2b8;
+  border: 1px solid #d4a359;
+}
+.card-hover-effect:hover {
+  transform: translateY(-4px);
+  box-shadow: 0 0.5rem 1rem rgba(104, 65, 16, 0.15) !important;
+  border-color: #e2a03e;
+}
+
+/*# sourceMappingURL=custom.css.map */

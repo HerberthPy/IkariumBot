@@ -13,7 +13,6 @@ def get_brasilia_time():
     tz = pytz.timezone('America/Sao_Paulo')
     return datetime.now(tz)
 
-
 class User(UserMixin, db.Model):
     __tablename__ = 'users'
 
@@ -97,13 +96,11 @@ class User(UserMixin, db.Model):
             return 1
         return 0
 
-
 def get_cipher():
     # Cria uma chave determinística de 32 bytes a partir da SECRET_KEY do Flask
     secret = current_app.config['SECRET_KEY'].encode('utf-8')
     key = base64.urlsafe_b64encode(secret.ljust(32)[:32])
     return Fernet(key)
-
 
 class VPN(db.Model):
     __tablename__ = 'vpns'
@@ -154,7 +151,6 @@ class Lobby(db.Model):
     email = db.Column(db.String(120), nullable=False)  # E-MAIL
     password_encrypted = db.Column(db.String(255), nullable=False)  # SENHA CRIPTOGRAFADA
     country = db.Column(db.String(100), nullable=False)  # PAÍS DE CONEXÃO
-    accounts_count = db.Column(db.Integer, default=0, nullable=False)  # CONTAS VINCULADAS
     status = db.Column(db.String(20), default='ATIVA')  # 'ATIVA' ou 'INATIVA'
     created_at = db.Column(db.DateTime, default=get_brasilia_time)
 

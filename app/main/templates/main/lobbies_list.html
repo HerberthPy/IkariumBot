@@ -32,7 +32,7 @@
         </div>
 
         <div>
-            <a href="{{ url_for('main.create_vpn') if 'create_vpn' in endpoints else '#' }}" class="btn btn-primary rounded-3 shadow-sm py-2 px-3 fw-semibold">
+            <a href="{{ url_for('main.create_lobby') }}" class="btn btn-primary rounded-3 shadow-sm py-2 px-3 fw-semibold">
                 <i class="bi bi-plus-lg me-1"></i> Cadastrar Novo Lobby
             </a>
         </div>
@@ -44,15 +44,15 @@
             {% for category, message in messages %}
                 <div class="alert alert-{{ 'danger' if category in ['error', 'danger'] else category }} alert-dismissible fade show small mb-4" role="alert">
                     {{ message }}
-                        <button type="button" class="btn-close" data-bs-dismiss="alert" aria-label="Close"></button>
+                    <button type="button" class="btn-close" data-bs-dismiss="alert" aria-label="Close"></button>
                 </div>
             {% endfor %}
         {% endif %}
     {% endwith %}
 
-    <!-- Tabela / Lista de Lobbies --> <!-- VISUALIZAÇÃO DESKTOP / TABLET (d-none d-md-block) -->
     <div class="card border-0 shadow-sm rounded-4 overflow-hidden bg-white">
         {% if lobbies %}
+        <!-- VISUALIZAÇÃO DESKTOP / TABLET (d-none d-md-block) -->
         <div class="table-responsive d-none d-md-block">
             <table class="table table-hover align-middle mb-0 w-100">
                 <thead class="table-light border-bottom">
@@ -71,7 +71,7 @@
                     <tr>
                         <!-- Apelido -->
                         <td class="ps-4 py-3 fw-semibold text-dark">
-                            <i class="bi bi-hdd-network text-primary me-2"></i>{{ lobby.apelido }}
+                            <i class="bi bi-hdd-network text-primary me-2"></i>{{ lobby.nickname }}
                         </td>
 
                         <!-- E-mail -->
@@ -84,7 +84,7 @@
                             <div class="d-inline-flex align-items-center bg-light rounded-3 px-2 py-1 border">
                                 <input
                                         type="password"
-                                        value="{{ lobby.senha }}"
+                                        value="{{ lobby.decrypted_password if lobby.decrypted_password else lobby.get_password() }}"
                                         class="form-control-plaintext form-control-sm py-0 pe-2 text-secondary fw-monospace border-0"
                                         readonly
                                         id="pwd-{{ loop.index }}"
@@ -101,43 +101,58 @@
                             </div>
                         </td>
 
-                        <!-- VPN vinculada ao looby -->
+                        <!-- VPN vinculada ao lobby -->
                         <td class="py-3">
-                            {{ lobby.vpn }}
+                            {{ lobby.vpn.nickname if lobby.vpn else 'Sem VPN' }}
                         </td>
 
-                        <!-- Quantidade de contas no looby -->
+                        <!-- Quantidade de contas no lobby -->
                         <td class="py-3">
-                            {{ lobby.contas }}
+                            {{ lobby.contas|length if lobby.contas else 0 }}
                         </td>
 
                         <!-- Status -->
                         <td class="py-3">
                             {% if lobby.status == "ATIVO" %}
                             <span class="badge bg-success-subtle text-success rounded-pill px-3 py-2 fw-semibold small">
-                                <i class="bi bi-check-circle-fill me-1"></i> {{ lobby.status|default('INATIVA') }}
+                                <i class="bi bi-check-circle-fill me-1"></i> ATIVO
                             </span>
                             {% else %}
                             <span class="badge bg-danger-subtle text-danger rounded-pill px-3 py-2 fw-semibold small">
-                                <i class="bi bi-check-circle-fill me-1"></i> {{ lobby.status|default('INATIVA') }}
+                                <i class="bi bi-x-circle-fill me-1"></i> INATIVO
                             </span>
                             {% endif %}
                         </td>
 
-                        <!-- Acoes -->
+                        <!-- Ações -->
                         <td class="pe-4 py-3 text-end">
+                            <!-- Botão de Alternar Status -->
+                            <form action="{{ url_for('main.toggle_lobby_status', lobby_id=lobby.id) }}" method="POST" class="d-inline">
+                                <button type="submit"
+                                        class="btn btn-sm {{ 'btn-outline-danger' if lobby.status == 'ATIVO' else 'btn-outline-success' }} rounded-circle me-1"
+                                        title="{{ 'Inativar Lobby' if lobby.status == 'ATIVO' else 'Ativar Lobby' }}">
+                                    <i class="bi {{ 'bi-stop-circle-fill' if lobby.status == 'ATIVO' else 'bi-play-circle-fill' }}"></i>
+                                </button>
+                            </form>
+
                             <button
                                     class="btn btn-sm btn-outline-info rounded-circle me-1"
                                     data-bs-toggle="modal"
-                                    data-bs-target="#modalContasLobby-{{ lobby.id }}"
+                                    data-bs-target="#modalAccLobby-{{ lobby.id }}"
                                     title="Ver Contas do Lobby"
                             >
                                 <i class="bi bi-people-fill"></i>
                             </button>
-                            <button class="btn btn-sm btn-outline-secondary rounded-3 me-1" title="Editar">
+                            <button class="btn btn-sm btn-outline-secondary rounded-3 me-1"
+                                    data-bs-toggle="modal"
+                                    data-bs-target="#modalEditLobby-{{ lobby.id }}"
+                                    title="Editar">
                                 <i class="bi bi-pencil"></i>
                             </button>
-                            <button class="btn btn-sm btn-outline-danger rounded-3" title="Excluir">
+                            <button class="btn btn-sm btn-outline-danger rounded-3"
+                                    data-bs-toggle="modal"
+                                    data-bs-target="#modalDeleteLobby-{{ lobby.id }}"
+                                    title="Excluir">
                                 <i class="bi bi-trash"></i>
                             </button>
                         </td>
@@ -148,24 +163,24 @@
         </div>
 
         <!-- VISUALIZAÇÃO MOBILE (d-block d-md-none) -->
-        <div class="d-md-none">
+        <div class="d-md-none p-3">
             {% for lobby in lobbies %}
             <div class="card mb-3 shadow-sm border-0 bg-light">
                 <div class="card-body">
                     <!-- Cabeçalho do Card: Apelido + Badge de Status -->
                     <div class="d-flex justify-content-between align-items-center mb-2">
                         <h6 class="fw-bold mb-0 text-primary">
-                            <i class="bi bi-display me-1"></i> {{ lobby.apelido }}
+                            <i class="bi bi-hdd-network me-1"></i> {{ lobby.nickname }}
                         </h6>
 
                         <!-- Badge de Status (Ativo / Inativo) -->
                         {% if lobby.status == "ATIVO" %}
                         <span class="badge bg-success-subtle text-success border border-success-subtle rounded-pill">
-                            <i class="bi bi-check-circle-fill me-1"></i>{{ lobby.status }}
+                            <i class="bi bi-check-circle-fill me-1"></i>ATIVO
                         </span>
                         {% else %}
                         <span class="badge bg-danger-subtle text-danger border border-danger-subtle rounded-pill">
-                            <i class="bi bi-x-circle-fill me-1"></i>{{ lobby.status }}
+                            <i class="bi bi-x-circle-fill me-1"></i>INATIVO
                         </span>
                         {% endif %}
                     </div>
@@ -183,7 +198,7 @@
                                 <input
                                         type="password"
                                         class="form-control form-control-sm bg-white border-end-0 py-0"
-                                        value="{{ lobby.senha }}"
+                                        value="{{ lobby.decrypted_password if lobby.decrypted_password else lobby.get_password() }}"
                                         id="senha-mobile-{{ loop.index }}"
                                         readonly
                                 >
@@ -192,14 +207,14 @@
                                         type="button"
                                         onclick="togglePassword('senha-mobile-{{ loop.index }}', 'icon-mobile-{{ loop.index }}')"
                                 >
-                                    <i class="bi bi-eye" id="icon-mobile-{{ loop.index }}"></i>
+                                    <i class="bi bi-eye-slash-fill" id="icon-mobile-{{ loop.index }}"></i>
                                 </button>
                             </div>
                         </div>
 
                         <div class="d-flex align-items-center mb-1">
                             <strong class="me-2">VPN:</strong>
-                            <span class="text-break">{{ lobby.vpn }}</span>
+                            <span class="text-break">{{ lobby.vpn.nickname if lobby.vpn else 'Sem VPN' }}</span>
                         </div>
                     </div>
 
@@ -207,105 +222,197 @@
                     <div class="d-flex align-items-center">
                         <strong class="me-2" style="min-width: 85px;">CONTAS:</strong>
                         <span class="badge bg-white text-dark border">
-                            <i class="bi bi-cpu me-1 text-muted"></i>{{ lobby.uso_atual | default(10) }} / {{ lobby.limite_maximo | default(10) }}
+                            <i class="bi bi-cpu me-1 text-muted"></i>{{ lobby.contas|length if lobby.contas else 0 }}
                         </span>
                     </div>
                 </div>
 
-                <div class="d-flex gap-2 justify-content-end border-top pt-2 mt-2">
+                <div class="d-flex gap-2 justify-content-end border-top pt-2 mt-2 px-3 pb-2">
+                    <!-- Botão Alternar Status (Mobile) -->
+                    <form action="{{ url_for('main.toggle_lobby_status', lobby_id=lobby.id) }}" method="POST" class="d-inline">
+                        <button type="submit" class="btn btn-sm {{ 'btn-outline-danger' if lobby.status == 'ATIVO' else 'btn-outline-success' }}">
+                            <i class="bi {{ 'bi-stop-circle-fill' if lobby.status == 'ATIVO' else 'bi-play-circle-fill' }} me-1"></i>
+                            {{ 'Inativar' if lobby.status == 'ATIVO' else 'Ativar' }}
+                        </button>
+                    </form>
+
                     <button
                             class="btn btn-sm btn-outline-info"
                             data-bs-toggle="modal"
-                            data-bs-target="#modalContasLobby-{{ lobby.id }}"
+                            data-bs-target="#modalAccLobby-{{ lobby.id }}"
                     >
                         <i class="bi bi-people-fill me-1"></i> Contas
                     </button>
-                    <button class="btn btn-sm btn-outline-primary">
-                        <i class="bi bi-pencil"></i> Editar
+                    <button class="btn btn-sm btn-outline-secondary"
+                            data-bs-toggle="modal"
+                            data-bs-target="#modalEditLobby-{{ lobby.id }}">
+                        <i class="bi bi-pencil"></i>
                     </button>
-                    <button class="btn btn-sm btn-outline-danger">
-                        <i class="bi bi-trash"></i> Eliminar
+                    <button class="btn btn-sm btn-outline-danger"
+                            data-bs-toggle="modal"
+                            data-bs-target="#modalDeleteLobby-{{ lobby.id }}">
+                        <i class="bi bi-trash"></i>
                     </button>
                 </div>
             </div>
             {% endfor %}
         </div>
 
-            <!--  BLOCO DOS MODAIS -->
-            {% for lobby in lobbies %}
-            <div class="modal fade" id="modalContasLobby-{{ lobby.id }}" tabindex="-1" aria-hidden="true">
-                <div class="modal-dialog modal-dialog-centered modal-lg">
-                    <div class="modal-content">
-                        <div class="modal-header">
-                            <h5 class="modal-title fw-bold">Contas do Lobby: {{ lobby.apelido }}</h5>
-                            <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Fechar"></button>
+        <!-- BLOCO DOS MODAIS DE CONTAS -->
+        {% for lobby in lobbies %}
+        <div class="modal fade" id="modalAccLobby-{{ lobby.id }}" tabindex="-1" aria-hidden="true">
+            <div class="modal-dialog modal-dialog-centered modal-lg">
+                <div class="modal-content">
+                    <div class="modal-header">
+                        <h5 class="modal-title fw-bold">Contas do Lobby: {{ lobby.nickname }}</h5>
+                        <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Fechar"></button>
+                    </div>
+                    <div class="modal-body">
+                        {% if lobby.contas %}
+                        <div class="table-responsive">
+                            <table class="table table-hover align-middle mb-0">
+                                <thead>
+                                <tr>
+                                    <th>Servidor</th>
+                                    <th>Usuário</th>
+                                    <th>E-mail</th>
+                                    <th>Status</th>
+                                </tr>
+                                </thead>
+                                <tbody>
+                                {% for conta in lobby.contas %}
+                                <tr>
+                                    <td>{{ conta.servidor }}</td>
+                                    <td>{{ conta.nome_usuario }}</td>
+                                    <td>{{ conta.email }}</td>
+                                    <td>
+                                        {% if conta.ativo %}
+                                        <span class="badge bg-success">Ativa</span>
+                                        {% else %}
+                                        <span class="badge bg-danger">Inativa</span>
+                                        {% endif %}
+                                    </td>
+                                </tr>
+                                {% endfor %}
+                                </tbody>
+                            </table>
                         </div>
-                        <div class="modal-body">
-                            <!-- Tabela ou lista das contas deste lobby -->
-                            {% if lobby.contas %}
-                            <div class="table-responsive">
-                                <table class="table table-hover align-middle mb-0">
-                                    <thead>
-                                    <tr>
-                                        <th>Servidor</th>
-                                        <th>Usuário</th>
-                                        <th>E-mail</th>
-                                        <th>Status</th>
-                                    </tr>
-                                    </thead>
-                                    <tbody>
-                                    {% for conta in lobby.contas %}
-                                    <tr>
-                                        <td>{{ conta.servidor }}</td>
-                                        <td>{{ conta.nome_usuario }}</td>
-                                        <td>{{ conta.email }}</td>
-                                        <td>
-                                            {% if conta.ativo %}
-                                            <span class="badge bg-success">Ativa</span>
-                                            {% else %}
-                                            <span class="badge bg-danger">Inativa</span>
-                                            {% endif %}
-                                        </td>
-                                    </tr>
-                                    {% endfor %}
-                                    </tbody>
-                                </table>
-                            </div>
-                            {% else %}
-                            <p class="text-muted text-center my-3">Nenhuma conta cadastrada neste lobby.</p>
-                            {% endif %}
-                        </div>
-                        <div class="modal-footer">
-                            <button type="button" class="btn btn-sm btn-secondary" data-bs-dismiss="modal">Fechar</button>
-                        </div>
+                        {% else %}
+                        <p class="text-muted text-center my-3">Nenhuma conta cadastrada neste lobby.</p>
+                        {% endif %}
+                    </div>
+                    <div class="modal-footer">
+                        <button type="button" class="btn btn-sm btn-secondary" data-bs-dismiss="modal">Fechar</button>
                     </div>
                 </div>
             </div>
-            {% endfor %}
+        </div>
+        {% endfor %}
+
+        {% for lobby in lobbies %}
+        <div class="modal fade" id="modalEditLobby-{{ lobby.id }}" tabindex="-1" aria-hidden="true">
+            <div class="modal-dialog modal-dialog-centered">
+                <div class="modal-content border-0 shadow">
+                    <div class="modal-header bg-light">
+                        <h5 class="modal-title fw-bold text-dark">
+                            <i class="bi bi-pencil-square text-primary me-2"></i>Editar Lobby
+                        </h5>
+                        <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Fechar"></button>
+                    </div>
+
+                    <form action="{{ url_for('main.edit_lobby', lobby_id=lobby.id) }}" method="POST">
+                        <div class="modal-body p-4">
+                            <!-- Apelido -->
+                            <div class="mb-3">
+                                <label for="nickname-{{ lobby.id }}" class="form-label small fw-semibold text-secondary">Apelido do Lobby</label>
+                                <input type="text" class="form-control" id="nickname-{{ lobby.id }}" name="nickname" value="{{ lobby.nickname }}" required>
+                            </div>
+
+                            <!-- E-mail -->
+                            <div class="mb-3">
+                                <label for="email-{{ lobby.id }}" class="form-label small fw-semibold text-secondary">E-mail</label>
+                                <input type="email" class="form-control" id="email-{{ lobby.id }}" name="email" value="{{ lobby.email }}" required>
+                            </div>
+
+                            <!-- Senha (opcional) -->
+                            <div class="mb-3">
+                                <label for="password-{{ lobby.id }}" class="form-label small fw-semibold text-secondary">Nova Senha <span class="fw-normal text-muted">(deixe em branco para manter a atual)</span></label>
+                                <input type="password" class="form-control" id="password-{{ lobby.id }}" name="password" placeholder="••••••••">
+                            </div>
+
+                            <!-- Seleção de VPN -->
+                            <div class="mb-3">
+                                <label for="vpn_id-{{ lobby.id }}" class="form-label small fw-semibold text-secondary">VPN Vinculada</label>
+                                <select class="form-select" id="vpn_id-{{ lobby.id }}" name="vpn_id">
+                                    {% for vpn in vpns_ativas %}
+                                    <option value="{{ vpn.id }}" {% if lobby.vpn_id == vpn.id %}selected{% endif %}>
+                                        {{ vpn.nickname }} (Disponível: {{ vpn.available }}/{{ vpn.capacity }})
+                                    </option>
+                                    {% endfor %}
+                                </select>
+                            </div>
+                        </div>
+
+                        <div class="modal-footer bg-light">
+                            <button type="button" class="btn btn-sm btn-outline-secondary" data-bs-dismiss="modal">Cancelar</button>
+                            <button type="submit" class="btn btn-sm btn-primary px-3">Salvar Alterações</button>
+                        </div>
+                    </form>
+                </div>
+            </div>
+        </div>
+        {% endfor %}
+
+        <!-- BLOCO DOS MODAIS DE ELIMINAÇÃO DE LOBBY -->
+        {% for lobby in lobbies %}
+        <div class="modal fade" id="modalDeleteLobby-{{ lobby.id }}" tabindex="-1" aria-hidden="true">
+            <div class="modal-dialog modal-dialog-centered modal-sm">
+                <div class="modal-content border-0 shadow">
+                    <div class="modal-header bg-danger text-white">
+                        <h5 class="modal-title fw-bold fs-6">
+                            <i class="bi bi-exclamation-triangle-fill me-1"></i> Confirmar Exclusão
+                        </h5>
+                        <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal" aria-label="Fechar"></button>
+                    </div>
+
+                    <div class="modal-body text-center p-4">
+                        <p class="mb-1 text-dark fw-semibold">Tens a certeza que queres eliminar o lobby?</p>
+                        <p class="small text-danger fw-bold mb-0">{{ lobby.nickname }}</p>
+                        <small class="text-muted d-block mt-2">Esta ação não pode ser desfeita.</small>
+                    </div>
+
+                    <div class="modal-footer bg-light d-flex justify-content-between">
+                        <button type="button" class="btn btn-sm btn-outline-secondary" data-bs-dismiss="modal">Cancelar</button>
+                        <form action="{{ url_for('main.delete_lobby', lobby_id=lobby.id) }}" method="POST" class="d-inline">
+                            <button type="submit" class="btn btn-sm btn-danger px-3">Sim, Eliminar</button>
+                        </form>
+                    </div>
+                </div>
+            </div>
+        </div>
+        {% endfor %}
 
         {% else %}
-            <!-- Estado Vazio Único (Funciona no Mobile e no Desktop!) -->
-            <div class="card shadow-sm border-0 py-5 text-center">
-                <div class="card-body">
-                    <div class="text-secondary mb-3">
-                        <i class="bi bi-shield-slash fs-1 opacity-50"></i>
-                    </div>
-                    <h5 class="fw-bold text-dark mb-1">Nenhuma VPN encontrada</h5>
-                    <p class="text-secondary small mb-3">Você ainda não cadastrou nenhuma conta de VPN.</p>
-                    <a href="{{ url_for('main.create_vpn') if 'create_vpn' in endpoints else '#' }}" class="btn btn-primary btn-sm rounded-3">
-                        <i class="bi bi-plus-lg me-1"></i> Cadastrar Primeira VPN
-                    </a>
+        <!-- Estado Vazio -->
+        <div class="card shadow-sm border-0 py-5 text-center">
+            <div class="card-body">
+                <div class="text-secondary mb-3">
+                    <i class="bi bi-hdd-network fs-1 opacity-50"></i>
                 </div>
+                <h5 class="fw-bold text-dark mb-1">Nenhum Lobby encontrado</h5>
+                <p class="text-secondary small mb-3">Você ainda não cadastrou nenhum lobby.</p>
+                <a href="{{ url_for('main.create_lobby') }}" class="btn btn-primary btn-sm rounded-3">
+                    <i class="bi bi-plus-lg me-1"></i> Cadastrar Primeiro Lobby
+                </a>
             </div>
-        {% endif %}
         </div>
+        {% endif %}
     </div>
 </main>
 {% endblock %}
 
 {% block extra_js %}
-
-<!-- JavaScript para Alternar Visibilidade da Senha (Olho) -->
+<!-- JavaScript para Alternar Visibilidade da Senha -->
 <script>
   function togglePassword(inputId, iconId) {
     const pwdInput = document.getElementById(inputId);
@@ -326,5 +433,4 @@
     }
   }
 </script>
-
 {% endblock %}

@@ -1,22 +1,33 @@
-// Cores personalizadas do seu projeto
-$primary: #4f46e5;          // Azul/Roxo moderno
-$body-bg: #f8f9fa;          // Fundo cinza claro
-$body-color: #212529;       // Cor do texto
+// Paleta de Cores Inspirada no Ikariam
+$ikariam-parchment: #fdf7dd;     // Fundo principal (Pergaminho claro)
+$ikariam-sand: #f0e2b8;          // Fundo secundário/cards
+$ikariam-gold: #e2a03e;          // Destaques e botões secundários
+$ikariam-brown-header: #dbad6a;   // Marrom/dourado dos cabeçalhos e tabelas
+$ikariam-brown-dark: #684110;     // Cor principal de texto e títulos
+$ikariam-border: #d4a359;         // Bordas de elementos
 
-// Ajustes de estilo
-$border-radius: 0.5rem;     // 8px
-$border-radius-lg: 0.75rem; // 12px
+// Reatribuição das variáveis do Bootstrap
+$primary: $ikariam-brown-header;
+$body-bg: $ikariam-parchment;
+$body-color: $ikariam-brown-dark;
+
+// Ajustes de estilo mantendo a identidade visual
+$border-radius: 0.375rem;
+$border-radius-lg: 0.5rem;
 
 // Personalização de foco nos inputs
-$input-focus-border-color: $primary;
-$input-focus-box-shadow: 0 0 0 0.25rem rgba($primary, 0.25);
+$input-focus-border-color: $ikariam-gold;
+$input-focus-box-shadow: 0 0 0 0.25rem rgba($ikariam-gold, 0.35);
 
 // Efeito Hover para os Cards da Tela Inicial
 .card-hover-effect {
-  transition: transform 0.2s ease, box-shadow 0.2s ease;
+  transition: transform 0.2s ease, box-shadow 0.2s ease, border-color 0.2s ease;
+  background-color: $ikariam-sand;
+  border: 1px solid $ikariam-border;
 
   &:hover {
     transform: translateY(-4px);
-    box-shadow: 0 0.5rem 1rem rgba(0, 0, 0, 0.1) !important;
+    box-shadow: 0 0.5rem 1rem rgba($ikariam-brown-dark, 0.15) !important;
+    border-color: $ikariam-gold;
   }
 }

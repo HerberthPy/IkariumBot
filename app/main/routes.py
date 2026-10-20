@@ -17,7 +17,15 @@ def index():
 @module_required
 def lobbies_list():
     lobbies = Lobby.query.filter_by(user_id=current_user.id).all()
-    return render_template('main/lobbies_list.html', lobbies=lobbies)
+
+    for lobby in lobbies:
+        if hasattr(lobby, 'get_password'):
+            lobby.decrypted_password = lobby.get_password()
+
+    # Busca VPNs ativas para exibir nos modais de edição
+    vpns_ativas = VPN.query.filter_by(user_id=current_user.id, status='ATIVA').all()
+
+    return render_template('main/lobbies_list.html', lobbies=lobbies, vpns_ativas=vpns_ativas)
 
 # Rota de cadastro dos lobbies
 @main_bp.route('/lobbies/novo', methods=['GET', 'POST'])
@@ -58,7 +66,7 @@ def create_lobby():
             country=country,
             vpn_id=vpn.id,
             user_id=current_user.id,
-            status='ATIVA'
+            status='ATIVO'
         )
         novo_lobby.set_password(password)
 
@@ -68,8 +76,97 @@ def create_lobby():
         flash("Lobby criado e vinculado com sucesso!", "success")
         return redirect(url_for('main.lobbies_list'))
 
-    vpns = VPN.query.filter_by(user_id=current_user.id, status='ATIVA').all()
-    return render_template('main/create_lobby.html', vpns=vpns)
+    # GET: Busca VPNs ativas do usuário e filtra apenas as que têm vagas disponíveis
+    vpns_ativas = VPN.query.filter_by(user_id=current_user.id, status='ATIVA').all()
+    vpns_disponiveis = [vpn for vpn in vpns_ativas if vpn.available > 0]
+
+    return render_template('main/create_lobby.html', vpns_disponiveis=vpns_disponiveis)
+
+@main_bp.route('/lobbies/<int:lobby_id>/editar', methods=['POST'])
+@login_required
+@module_required
+def edit_lobby(lobby_id):
+    lobby = Lobby.query.filter_by(id=lobby_id, user_id=current_user.id).first_or_404()
+
+    nickname = request.form.get('nickname', '').strip()
+    email = request.form.get('email', '').strip().lower()
+    password = request.form.get('password', '').strip()
+    vpn_id = request.form.get('vpn_id', type=int)
+
+    if not nickname or not email:
+        flash('Apelido e E-mail são obrigatórios.', 'danger')
+        return redirect(url_for('main.lobbies_list'))
+
+    # Se a VPN foi alterada, valida a disponibilidade e status da nova VPN
+    if vpn_id and vpn_id != lobby.vpn_id:
+        nova_vpn = VPN.query.filter_by(id=vpn_id, user_id=current_user.id).first()
+        if not nova_vpn:
+            flash('VPN selecionada não encontrada.', 'danger')
+            return redirect(url_for('main.lobbies_list'))
+
+        if nova_vpn.status != 'ATIVA':
+            flash(f'A VPN "{nova_vpn.nickname}" está inativa.', 'danger')
+            return redirect(url_for('main.lobbies_list'))
+
+        if nova_vpn.available <= 0:
+            flash(f'A VPN "{nova_vpn.nickname}" atingiu a capacidade máxima.', 'danger')
+            return redirect(url_for('main.lobbies_list'))
+
+        lobby.vpn_id = nova_vpn.id
+
+    lobby.nickname = nickname
+    lobby.email = email
+
+    # Atualiza a senha apenas se o usuário tiver preenchido o campo
+    if password:
+        lobby.set_password(password)
+
+    db.session.commit()
+    flash(f'Lobby "{lobby.nickname}" atualizado com sucesso!', 'success')
+    return redirect(url_for('main.lobbies_list'))
+
+@main_bp.route('/lobbies/<int:lobby_id>/deletar', methods=['POST'])
+@login_required
+@module_required
+def delete_lobby(lobby_id):
+    lobby = Lobby.query.filter_by(id=lobby_id, user_id=current_user.id).first_or_404()
+
+    # Validação: se o lobby tiver contas associadas, impede a exclusão
+    if hasattr(lobby, 'contas') and len(lobby.contas) > 0:
+        flash(f'Não é possível excluir o lobby "{lobby.nickname}" pois ele possui {len(lobby.contas)} conta(s) vinculada(s).', 'danger')
+        return redirect(url_for('main.lobbies_list'))
+
+    try:
+        nickname = lobby.nickname
+        db.session.delete(lobby)
+        db.session.commit()
+        flash(f'Lobby "{nickname}" removido com sucesso!', 'success')
+    except Exception:
+        db.session.rollback()
+        flash('Ocorreu um erro ao tentar excluir o lobby.', 'danger')
+
+    return redirect(url_for('main.lobbies_list'))
+
+@main_bp.route('/lobbies/<int:lobby_id>/toggle-status', methods=['POST'])
+@login_required
+@module_required
+def toggle_lobby_status(lobby_id):
+    lobby = Lobby.query.filter_by(id=lobby_id, user_id=current_user.id).first_or_404()
+
+    if lobby.status == 'ATIVO':
+        lobby.status = 'INATIVO'
+        flash(f'Lobby "{lobby.nickname}" alterado para INATIVO.', 'warning')
+    else:
+        # Se a VPN vinculada estiver inativa, impede a ativação do lobby
+        if lobby.vpn and lobby.vpn.status != 'ATIVA':
+            flash(f'Não é possível ativar o lobby "{lobby.nickname}" pois a VPN "{lobby.vpn.nickname}" está inativa.', 'danger')
+            return redirect(url_for('main.lobbies_list'))
+
+        lobby.status = 'ATIVO'
+        flash(f'Lobby "{lobby.nickname}" alterado para ATIVO.', 'success')
+
+    db.session.commit()
+    return redirect(url_for('main.lobbies_list'))
 
 # Rota da lista de VPNs
 @main_bp.route('/vpns', methods=['GET'])
@@ -137,7 +234,6 @@ def delete_vpn(vpn_id):
 
     return redirect(url_for('main.vpn_list'))
 
-
 @main_bp.route('/vpns/<int:vpn_id>/editar', methods=['POST'])
 @login_required
 @module_required
@@ -185,3 +281,4 @@ def toggle_vpn_status(vpn_id):
 
     db.session.commit()
     return redirect(url_for('main.vpn_list'))
+
