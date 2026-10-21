@@ -47,7 +47,7 @@ class AuthManager:
 
             print(f"[Auth IP] FASE 1 - IP Real: {cls._get_current_ip(login_page)}")
 
-            login_page.goto("https://lobby.ikariam.gameforge.com/pt_BR/", timeout=30000, wait_until="networkidle")
+            login_page.goto("https://lobby.ikariam.gameforge.com/pt_BR/", timeout=30000, wait_until="domcontentloaded")
 
             # Aceita Cookies se o banner estiver visível
             try:
@@ -72,8 +72,11 @@ class AuthManager:
             except Exception:
                 pass
 
-            login_page.wait_for_url("**/hub**", timeout=45000)
-            login_page.wait_for_load_state("networkidle")
+            print(f"[Auth] Aguardando redirecionamento para o Hub...")
+            login_page.wait_for_url("**/hub**", timeout=60000, wait_until="domcontentloaded")
+
+            # Aguarda o elemento visual do botão de jogar carregar em vez de esperar pelo 'networkidle'
+            login_page.locator("button:has-text('JOGAR'), button:has-text('PLAY')").first.wait_for(state="visible", timeout=30000)
 
             cookies = clean_context.cookies()
             local_storage = login_page.evaluate("() => JSON.stringify(localStorage)")
