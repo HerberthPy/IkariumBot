@@ -28,15 +28,32 @@
             <h2 class="h3 fw-bold text-dark mb-1">
                 <i class="bi bi-controller text-primary me-2"></i>Meus Lobbies
             </h2>
-            <p class="text-secondary small mb-0">Gerencie e visualize todos os lobbies cadastrados no sistema</p>
+            <p class="text-secondary small mb-0">Gerencie e visualize todos os seus lobbies de automação</p>
         </div>
 
         <div>
-            <a href="{{ url_for('main.create_lobby') }}" class="btn btn-primary rounded-3 shadow-sm py-2 px-3 fw-semibold">
-                <i class="bi bi-plus-lg me-1"></i> Cadastrar Novo Lobby
-            </a>
+            {% if current_user.can_create_lobby %}
+                <a href="{{ url_for('main.create_lobby') }}" class="btn btn-primary rounded-3 shadow-sm py-2 px-3 fw-semibold">
+                    <i class="bi bi-plus-lg me-1"></i> Cadastrar Novo Lobby
+                </a>
+            {% else %}
+                <button class="btn btn-secondary rounded-3 shadow-sm py-2 px-3 fw-semibold disabled" title="Você atingiu o limite de Lobbies referente às suas conexões atribuídas.">
+                    <i class="bi bi-lock-fill me-1"></i> Cadastrar Novo Lobby
+                </button>
+            {% endif %}
         </div>
     </div>
+
+    <!-- Alerta de Limite Atingido -->
+    {% if not current_user.can_create_lobby %}
+        <div class="alert alert-warning border-0 shadow-sm rounded-4 mb-4 p-3 d-flex align-items-center gap-3" role="alert">
+            <i class="bi bi-exclamation-triangle-fill fs-3 text-warning"></i>
+            <div>
+                <strong class="d-block text-dark">Limite de Lobbies Atingido ({{ current_user.total_lobbies }}/{{ current_user.max_allowed_lobbies }})</strong>
+                <span class="small text-secondary">Você não possui conexões disponíveis sem uso para vincular a um novo lobby. Solicite novas conexões ao administrador.</span>
+            </div>
+        </div>
+    {% endif %}
 
     <!-- Mensagens Flash -->
     {% with messages = get_flashed_messages(with_categories=true) %}
@@ -60,9 +77,9 @@
                     <th scope="col" class="ps-4 py-3 text-secondary small fw-semibold">APELIDO</th>
                     <th scope="col" class="py-3 text-secondary small fw-semibold">E-MAIL</th>
                     <th scope="col" class="py-3 text-secondary small fw-semibold">SENHA</th>
-                    <th scope="col" class="py-3 text-secondary small fw-semibold">PROXY (WEBSHARE)</th>
+                    <th scope="col" class="py-3 text-secondary small fw-semibold">CONEXÃO PROXY</th>
                     <th scope="col" class="py-3 text-secondary small fw-semibold">PAÍS</th>
-                    <th scope="col" class="py-3 text-secondary small fw-semibold">CONTAS</th>
+                    <th scope="col" class="py-3 text-secondary small fw-semibold">SERVIDORES</th>
                     <th scope="col" class="py-3 text-secondary small fw-semibold">STATUS</th>
                     <th scope="col" class="pe-4 py-3 text-end text-secondary small fw-semibold">AÇÕES</th>
                 </tr>
@@ -80,7 +97,7 @@
                             {{ lobby.email }}
                         </td>
 
-                        <!-- Senha Oculta com Botão do Olho -->
+                        <!-- Senha Oculta -->
                         <td class="py-3">
                             <div class="d-inline-flex align-items-center bg-light rounded-3 px-2 py-1 border">
                                 <input
@@ -102,12 +119,14 @@
                             </div>
                         </td>
 
-                        <!-- Proxy vinculado ao lobby -->
+                        <!-- Proxy vinculado (Sem credenciais/IPs expostos) -->
                         <td class="py-3">
                             {% if lobby.proxy %}
-                                <code>{{ lobby.proxy.address }}:{{ lobby.proxy.port }}</code>
+                                <span class="badge bg-secondary-subtle text-secondary border rounded-pill px-3 py-1 fw-semibold">
+                                    <i class="bi bi-globe2 me-1"></i> Proxy #{{ lobby.proxy.id }}
+                                </span>
                             {% else %}
-                                <span class="badge bg-warning text-dark">Sem Proxy</span>
+                                <span class="badge bg-warning text-dark">Sem Conexão</span>
                             {% endif %}
                         </td>
 
@@ -116,9 +135,11 @@
                             {{ lobby.country }}
                         </td>
 
-                        <!-- Quantidade de contas no lobby -->
+                        <!-- Servidores do lobby -->
                         <td class="py-3">
-                            {{ lobby.contas|length if lobby.contas else 0 }}
+                            <span class="badge bg-light text-dark border fw-semibold">
+                                {{ lobby.contas|length if lobby.contas else 0 }} Servidor(es)
+                            </span>
                         </td>
 
                         <!-- Status -->
@@ -136,7 +157,6 @@
 
                         <!-- Ações -->
                         <td class="pe-4 py-3 text-end">
-                            <!-- Botão de Alternar Status -->
                             <form action="{{ url_for('main.toggle_lobby_status', lobby_id=lobby.id) }}" method="POST" class="d-inline">
                                 <button type="submit"
                                         class="btn btn-sm {{ 'btn-outline-danger' if lobby.status == 'ATIVO' else 'btn-outline-success' }} rounded-circle me-1"
@@ -149,7 +169,7 @@
                                     class="btn btn-sm btn-outline-info rounded-circle me-1"
                                     data-bs-toggle="modal"
                                     data-bs-target="#modalAccLobby-{{ lobby.id }}"
-                                    title="Ver Contas do Lobby"
+                                    title="Ver Servidores do Lobby"
                             >
                                 <i class="bi bi-people-fill"></i>
                             </button>
@@ -177,13 +197,11 @@
             {% for lobby in lobbies %}
             <div class="card mb-3 shadow-sm border-0 bg-light">
                 <div class="card-body">
-                    <!-- Cabeçalho do Card: Apelido + Badge de Status -->
                     <div class="d-flex justify-content-between align-items-center mb-2">
                         <h6 class="fw-bold mb-0 text-primary">
                             <i class="bi bi-controller me-1"></i> {{ lobby.nickname }}
                         </h6>
 
-                        <!-- Badge de Status (Ativo / Inativo) -->
                         {% if lobby.status == "ATIVO" %}
                         <span class="badge bg-success-subtle text-success border border-success-subtle rounded-pill">
                             <i class="bi bi-check-circle-fill me-1"></i>ATIVO
@@ -201,7 +219,7 @@
                             <span class="text-break">{{ lobby.email }}</span>
                         </div>
 
-                        <!-- CAMPO DE SENHA COM TOGGLE (MOBILE) -->
+                        <!-- SENHA MOBILE -->
                         <div class="d-flex align-items-center mb-1">
                             <strong class="me-2" style="min-width: 55px;">Senha:</strong>
                             <div class="input-group input-group-sm">
@@ -223,24 +241,19 @@
                         </div>
 
                         <div class="d-flex align-items-center mb-1">
-                            <strong class="me-2">Proxy:</strong>
+                            <strong class="me-2">Conexão:</strong>
                             <span class="text-break">
                                 {% if lobby.proxy %}
-                                    <code>{{ lobby.proxy.address }}:{{ lobby.proxy.port }}</code>
+                                    <span class="badge bg-secondary-subtle text-secondary border">Proxy #{{ lobby.proxy.id }} ({{ lobby.country }})</span>
                                 {% else %}
-                                    Sem Proxy
+                                    Sem Conexão
                                 {% endif %}
                             </span>
                         </div>
-                        <div class="d-flex align-items-center mb-1">
-                            <strong class="me-2">País:</strong>
-                            <span class="text-break">{{ lobby.country }}</span>
-                        </div>
                     </div>
 
-                    <!-- CONTAS NO LOBBY -->
                     <div class="d-flex align-items-center">
-                        <strong class="me-2" style="min-width: 85px;">CONTAS:</strong>
+                        <strong class="me-2" style="min-width: 85px;">SERVIDORES:</strong>
                         <span class="badge bg-white text-dark border">
                             <i class="bi bi-cpu me-1 text-muted"></i>{{ lobby.contas|length if lobby.contas else 0 }}
                         </span>
@@ -248,7 +261,6 @@
                 </div>
 
                 <div class="d-flex gap-2 justify-content-end border-top pt-2 mt-2 px-3 pb-2">
-                    <!-- Botão Alternar Status (Mobile) -->
                     <form action="{{ url_for('main.toggle_lobby_status', lobby_id=lobby.id) }}" method="POST" class="d-inline">
                         <button type="submit" class="btn btn-sm {{ 'btn-outline-danger' if lobby.status == 'ATIVO' else 'btn-outline-success' }}">
                             <i class="bi {{ 'bi-stop-circle-fill' if lobby.status == 'ATIVO' else 'bi-play-circle-fill' }} me-1"></i>
@@ -261,7 +273,7 @@
                             data-bs-toggle="modal"
                             data-bs-target="#modalAccLobby-{{ lobby.id }}"
                     >
-                        <i class="bi bi-people-fill me-1"></i> Contas
+                        <i class="bi bi-people-fill me-1"></i> Servidores
                     </button>
                     <button class="btn btn-sm btn-outline-secondary"
                             data-bs-toggle="modal"
@@ -278,16 +290,16 @@
             {% endfor %}
         </div>
 
-        <!-- BLOCO DOS MODAIS DE CONTAS -->
+        <!-- MODAL DE SERVIDORES DO LOBBY -->
         {% for lobby in lobbies %}
         <div class="modal fade" id="modalAccLobby-{{ lobby.id }}" tabindex="-1" aria-hidden="true">
             <div class="modal-dialog modal-dialog-centered modal-lg">
-                <div class="modal-content">
-                    <div class="modal-header">
-                        <h5 class="modal-title fw-bold">Contas do Lobby: {{ lobby.nickname }}</h5>
+                <div class="modal-content border-0 shadow">
+                    <div class="modal-header bg-light">
+                        <h5 class="modal-title fw-bold">Servidores no Lobby: {{ lobby.nickname }}</h5>
                         <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Fechar"></button>
                     </div>
-                    <div class="modal-body">
+                    <div class="modal-body p-4">
                         {% if lobby.contas %}
                         <div class="table-responsive">
                             <table class="table table-hover align-middle mb-0">
@@ -307,9 +319,9 @@
                                     <td>{{ conta.email }}</td>
                                     <td>
                                         {% if conta.ativo %}
-                                        <span class="badge bg-success">Ativa</span>
+                                        <span class="badge bg-success-subtle text-success border rounded-pill">Ativa</span>
                                         {% else %}
-                                        <span class="badge bg-danger">Inativa</span>
+                                        <span class="badge bg-danger-subtle text-danger border rounded-pill">Inativa</span>
                                         {% endif %}
                                     </td>
                                 </tr>
@@ -318,10 +330,10 @@
                             </table>
                         </div>
                         {% else %}
-                        <p class="text-muted text-center my-3">Nenhuma conta cadastrada neste lobby.</p>
+                        <p class="text-muted text-center my-3">Nenhum servidor cadastrado neste lobby.</p>
                         {% endif %}
                     </div>
-                    <div class="modal-footer">
+                    <div class="modal-footer bg-light">
                         <button type="button" class="btn btn-sm btn-secondary" data-bs-dismiss="modal">Fechar</button>
                     </div>
                 </div>
@@ -329,7 +341,7 @@
         </div>
         {% endfor %}
 
-        <!-- BLOCO DOS MODAIS DE EDIÇÃO -->
+        <!-- MODAL DE EDIÇÃO DO LOBBY (Seleção amigável de Proxy sem expor IP) -->
         {% for lobby in lobbies %}
         <div class="modal fade" id="modalEditLobby-{{ lobby.id }}" tabindex="-1" aria-hidden="true">
             <div class="modal-dialog modal-dialog-centered">
@@ -355,20 +367,22 @@
                                 <input type="email" class="form-control" id="email-{{ lobby.id }}" name="email" value="{{ lobby.email }}" required>
                             </div>
 
-                            <!-- Senha (opcional) -->
+                            <!-- Senha -->
                             <div class="mb-3">
-                                <label for="password-{{ lobby.id }}" class="form-label small fw-semibold text-secondary">Nova Senha <span class="fw-normal text-muted">(deixe em branco para manter a atual)</span></label>
+                                <label for="password-{{ lobby.id }}" class="form-label small fw-semibold text-secondary">Nova Senha <span class="fw-normal text-muted">(deixe em branco para manter)</span></label>
                                 <input type="password" class="form-control" id="password-{{ lobby.id }}" name="password" placeholder="••••••••">
                             </div>
 
-                            <!-- Seleção de Proxy -->
+                            <!-- Seleção de Proxy (Sem expor IP/Porta ao usuário) -->
                             <div class="mb-3">
-                                <label for="proxy_id-{{ lobby.id }}" class="form-label small fw-semibold text-secondary">Proxy Vinculado (Webshare)</label>
+                                <label for="proxy_id-{{ lobby.id }}" class="form-label small fw-semibold text-secondary">Conexão Designada</label>
                                 <select class="form-select" id="proxy_id-{{ lobby.id }}" name="proxy_id" required>
-                                    {% for proxy in proxies_ativas %}
-                                    <option value="{{ proxy.id }}" {% if lobby.proxy_id == proxy.id %}selected{% endif %}>
-                                        {{ proxy.address }}:{{ proxy.port }} {% if proxy.country %}({{ proxy.country }}){% endif %}
-                                    </option>
+                                    {% for proxy in user_proxies %}
+                                        {% if not proxy.is_in_use or proxy.id == lobby.proxy_id %}
+                                            <option value="{{ proxy.id }}" {% if lobby.proxy_id == proxy.id %}selected{% endif %}>
+                                                Proxy #{{ proxy.id }} {% if proxy.country %}- {{ proxy.country }}{% else %}- Global{% endif %}
+                                            </option>
+                                        {% endif %}
                                     {% endfor %}
                                 </select>
                             </div>
@@ -384,7 +398,7 @@
         </div>
         {% endfor %}
 
-        <!-- BLOCO DOS MODAIS DE EXCLUSÃO DE LOBBY -->
+        <!-- MODAL DE EXCLUSÃO -->
         {% for lobby in lobbies %}
         <div class="modal fade" id="modalDeleteLobby-{{ lobby.id }}" tabindex="-1" aria-hidden="true">
             <div class="modal-dialog modal-dialog-centered modal-sm">
@@ -397,7 +411,7 @@
                     </div>
 
                     <div class="modal-body text-center p-4">
-                        <p class="mb-1 text-dark fw-semibold">Tens a certeza que queres eliminar o lobby?</p>
+                        <p class="mb-1 text-dark fw-semibold">Tem certeza de que deseja excluir o lobby?</p>
                         <p class="small text-danger fw-bold mb-0">{{ lobby.nickname }}</p>
                         <small class="text-muted d-block mt-2">Esta ação não pode ser desfeita.</small>
                     </div>
@@ -405,7 +419,7 @@
                     <div class="modal-footer bg-light d-flex justify-content-between">
                         <button type="button" class="btn btn-sm btn-outline-secondary" data-bs-dismiss="modal">Cancelar</button>
                         <form action="{{ url_for('main.delete_lobby', lobby_id=lobby.id) }}" method="POST" class="d-inline">
-                            <button type="submit" class="btn btn-sm btn-danger px-3">Sim, Eliminar</button>
+                            <button type="submit" class="btn btn-sm btn-danger px-3">Sim, Excluir</button>
                         </form>
                     </div>
                 </div>
@@ -420,11 +434,13 @@
                 <div class="text-secondary mb-3">
                     <i class="bi bi-controller fs-1 opacity-50"></i>
                 </div>
-                <h5 class="fw-bold text-dark mb-1">Nenhum Lobby encontrado</h5>
-                <p class="text-secondary small mb-3">Você ainda não cadastrou nenhum lobby.</p>
-                <a href="{{ url_for('main.create_lobby') }}" class="btn btn-primary btn-sm rounded-3">
-                    <i class="bi bi-plus-lg me-1"></i> Cadastrar Primeiro Lobby
-                </a>
+                <h5 class="fw-bold text-dark mb-1">Nenhum Lobby cadastrado</h5>
+                <p class="text-secondary small mb-3">Você ainda não cadastrou nenhum lobby de automação.</p>
+                {% if current_user.can_create_lobby %}
+                    <a href="{{ url_for('main.create_lobby') }}" class="btn btn-primary btn-sm rounded-3">
+                        <i class="bi bi-plus-lg me-1"></i> Cadastrar Primeiro Lobby
+                    </a>
+                {% endif %}
             </div>
         </div>
         {% endif %}
@@ -433,7 +449,6 @@
 {% endblock %}
 
 {% block extra_js %}
-<!-- JavaScript para Alternar Visibilidade da Senha -->
 <script>
   function togglePassword(inputId, iconId) {
     const pwdInput = document.getElementById(inputId);

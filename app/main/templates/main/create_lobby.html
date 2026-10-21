@@ -7,44 +7,73 @@
 {% endblock %}
 
 {% block content %}
-<div class="container my-4">
-  <!-- 1. Cabeçalho Externo (Título, Subtítulo e Botão Voltar) -->
+<div class="container my-4 pb-5">
+  <!-- 1. Cabeçalho Externo -->
   <div class="d-flex justify-content-between align-items-center mb-3">
     <div>
-      <h2 class="fw-bold mb-1">Cadastrar Novo Lobby (Ikariam)</h2>
-      <p class="text-muted mb-0">Preencha as informações do novo lobby para adicionar ao sistema.</p>
+      <h2 class="fw-bold mb-1 text-dark">
+        <i class="bi bi-controller text-primary me-2"></i>Cadastrar Novo Lobby
+      </h2>
+      <p class="text-muted mb-0">Preencha as credenciais do seu lobby do Ikariam para vincular ao sistema.</p>
     </div>
-    <a href="{{ url_for('main.lobbies_list') }}" class="btn btn-outline-secondary rounded-pill px-3">
-      &larr; Voltar aos Lobbies
+    <a href="{{ url_for('main.lobbies_list') }}" class="btn btn-outline-secondary rounded-pill px-3 btn-sm">
+      <i class="bi bi-arrow-left me-1"></i> Voltar aos Lobbies
     </a>
   </div>
 
+  <!-- Mensagens Flash -->
+  {% with messages = get_flashed_messages(with_categories=true) %}
+      {% if messages %}
+          {% for category, message in messages %}
+              <div class="alert alert-{{ 'danger' if category in ['error', 'danger'] else category }} alert-dismissible fade show small mb-4" role="alert">
+                  {{ message }}
+                  <button type="button" class="btn-close" data-bs-dismiss="alert" aria-label="Close"></button>
+              </div>
+          {% endfor %}
+      {% endif %}
+  {% endwith %}
+
+  <!-- Alerta de Bloqueio por Falta de Proxy -->
+  {% if not current_user.can_create_lobby or not user_proxies %}
+    <div class="alert alert-warning border-0 shadow-sm rounded-4 mb-4 p-4 d-flex align-items-center gap-3">
+      <i class="bi bi-exclamation-triangle-fill fs-2 text-warning"></i>
+      <div>
+        <h6 class="fw-bold mb-1 text-dark">Não é possível criar um novo lobby no momento</h6>
+        <p class="small text-secondary mb-0">
+          Você atingiu o limite de lobbies permitidos para sua conta ou não possui nenhuma conexão proxy livre. Solicite a liberação de novos proxies ao administrador.
+        </p>
+      </div>
+    </div>
+  {% endif %}
+
   <!-- 2. Card Principal -->
-  <div class="card border-0 shadow-sm p-4 rounded-4" style="background-color: #fdf8e6;">
+  <div class="card border-0 shadow-sm p-4 rounded-4 bg-white">
     <form action="{{ url_for('main.create_lobby') }}" method="POST">
 
       <!-- Seção: Credenciais do Lobby -->
-      <h6 class="fw-bold text-warning-emphasis mb-3">Credenciais do Lobby</h6>
+      <h6 class="fw-bold text-primary mb-3">
+        <i class="bi bi-key-fill me-1"></i> Credenciais do Lobby
+      </h6>
 
       <div class="row g-3 mb-4">
         <!-- E-mail do Lobby -->
         <div class="col-md-6">
-          <label for="email" class="form-label fw-medium">E-mail do Lobby</label>
-          <input type="email" class="form-control bg-light-subtle" id="email" name="email" placeholder="exemplo@email.com" required>
+          <label for="email" class="form-label fw-medium text-secondary small">E-mail do Lobby</label>
+          <input type="email" class="form-control" id="email" name="email" placeholder="exemplo@email.com" required {% if not current_user.can_create_lobby or not user_proxies %}disabled{% endif %}>
         </div>
 
-        <!-- Apelido Lobby -->
+        <!-- Apelido do Lobby -->
         <div class="col-md-6">
-          <label for="nickname" class="form-label fw-medium">Apelido do Lobby</label>
-          <input type="text" class="form-control bg-light-subtle" id="nickname" name="nickname" placeholder="Ex: Doadora / Produtora ..." required>
+          <label for="nickname" class="form-label fw-medium text-secondary small">Apelido do Lobby</label>
+          <input type="text" class="form-control" id="nickname" name="nickname" placeholder="Ex: Conta Principal / Produtora ..." required {% if not current_user.can_create_lobby or not user_proxies %}disabled{% endif %}>
         </div>
 
         <!-- Senha do Lobby com Botão de Revelar -->
         <div class="col-md-12">
-          <label for="password" class="form-label fw-medium">Senha do Lobby</label>
+          <label for="password" class="form-label fw-medium text-secondary small">Senha do Lobby</label>
           <div class="input-group">
-            <input type="password" class="form-control bg-light-subtle password-input" id="password" name="password" placeholder="••••••••" required>
-            <button class="btn btn-outline-secondary" type="button" onclick="toggleInputPassword(this)">
+            <input type="password" class="form-control password-input" id="password" name="password" placeholder="••••••••" required {% if not current_user.can_create_lobby or not user_proxies %}disabled{% endif %}>
+            <button class="btn btn-outline-secondary" type="button" onclick="toggleInputPassword(this)" {% if not current_user.can_create_lobby or not user_proxies %}disabled{% endif %}>
               <i class="bi bi-eye-slash-fill" id="eyeIcon"></i>
             </button>
           </div>
@@ -53,21 +82,25 @@
 
       <hr class="text-secondary opacity-25 my-4">
 
-      <!-- Seção: Associação do Proxy -->
-      <h6 class="fw-bold text-warning-emphasis mb-3">Conexão Proxy (Webshare)</h6>
+      <!-- Seção: Associação de Proxy Libre (Sem expor credenciais) -->
+      <h6 class="fw-bold text-primary mb-3">
+        <i class="bi bi-globe2 me-1"></i> Conexão Proxy
+      </h6>
 
       <div class="row g-3 mb-4">
-        <!-- Seleção de Proxy disponível -->
+        <!-- Seleção de Proxy disponível (Proxies do Usuário sem uso) -->
         <div class="col-md-12">
-          <label for="proxy_id" class="form-label fw-medium">Proxy Vinculado</label>
-          <select class="form-select bg-light-subtle" id="proxy_id" name="proxy_id" required>
-            <option value="" selected disabled>Selecione um proxy disponível...</option>
-            {% for proxy in vpns_disponiveis %}
-            <option value="{{ proxy.id }}">
-              {{ proxy.address }}:{{ proxy.port }} {% if proxy.country %}({{ proxy.country }}){% endif %}
-            </option>
+          <label for="proxy_id" class="form-label fw-medium text-secondary small">Conexão Designada</label>
+          <select class="form-select" id="proxy_id" name="proxy_id" required {% if not current_user.can_create_lobby or not user_proxies %}disabled{% endif %}>
+            <option value="" selected disabled>Selecione uma conexão livre atribuída a você...</option>
+            {% for proxy in user_proxies %}
+              {% if not proxy.is_in_use %}
+                <option value="{{ proxy.id }}">
+                  Proxy #{{ proxy.id }} {% if proxy.country %}- {{ proxy.country }}{% else %}- Global{% endif %}
+                </option>
+              {% endif %}
             {% else %}
-            <option value="" disabled>Nenhum proxy disponível no momento. Sincronize seus proxies primeiro.</option>
+              <option value="" disabled>Nenhuma conexão disponível. Solicite proxies ao administrador.</option>
             {% endfor %}
           </select>
         </div>
@@ -76,7 +109,9 @@
       <!-- 3. Botões de Ação -->
       <div class="d-flex justify-content-end gap-2 mt-4">
         <a href="{{ url_for('main.lobbies_list') }}" class="btn btn-light rounded-pill px-4">Cancelar</a>
-        <button type="submit" class="btn btn-primary rounded-pill px-4">Salvar Lobby</button>
+        <button type="submit" class="btn btn-primary rounded-pill px-4 fw-semibold" {% if not current_user.can_create_lobby or not user_proxies %}disabled{% endif %}>
+          <i class="bi bi-check-lg me-1"></i> Salvar Lobby
+        </button>
       </div>
 
     </form>

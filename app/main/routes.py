@@ -1,73 +1,169 @@
 from flask import render_template, request, redirect, url_for, flash, current_app
 from flask_login import login_required, current_user
 from app import db
-from app.models import Proxy, Lobby
+from app.models import Proxy, Lobby, User
 from app.main import main_bp
-from app.main.decorators import module_required
 from app.main.tasks import sync_webshare_job
+from app.main.decorators import admin_required, user_active_required
 
 
 @main_bp.route('/')
 @main_bp.route('/index')
 @login_required
+@user_active_required
 def index():
     return render_template('main/index.html', user=current_user)
 
 
 # ==========================================
-# ROTAS DE LOBBIES
+# ROTAS ADMINISTRATIVAS
+# ==========================================
+
+@main_bp.route('/admin/proxies', methods=['GET'])
+@login_required
+@admin_required
+def admin_proxies():
+    """Painel do Admin: Lista todas as proxies do pool (livres e atribuídas)."""
+    proxies = Proxy.query.all()
+    users = User.query.filter_by(is_admin=0, is_active=True).all()
+    return render_template('main/admin_proxies.html', proxies=proxies, users=users)
+
+
+@main_bp.route('/admin/proxies/<int:proxy_id>/assign', methods=['POST'])
+@login_required
+@admin_required
+def assign_proxy(proxy_id):
+    """Admin atribui ou altera o usuário dono da proxy."""
+    proxy = Proxy.query.get_or_404(proxy_id)
+    user_id = request.form.get('user_id', type=int)
+
+    if user_id:
+        user = User.query.get(user_id)
+        if not user:
+            flash('Usuário selecionado não encontrado.', 'danger')
+            return redirect(url_for('main.admin_proxies'))
+
+        proxy.user_id = user.id
+        flash(f'Proxy #{proxy.id} atribuída com sucesso ao usuário {user.full_name}!', 'success')
+    else:
+        # Se unassign (devolver ao pool global)
+        proxy.user_id = None
+        flash(f'Proxy #{proxy.id} devolvida ao Pool Global.', 'info')
+
+    db.session.commit()
+    return redirect(url_for('main.admin_proxies'))
+
+
+@main_bp.route('/admin/proxies/sincronizar', methods=['POST', 'GET'])
+@login_required
+@admin_required
+def sync_proxies():
+    """Sincroniza manualmente as proxies do Webshare no Pool Global."""
+    try:
+        app = current_app._get_current_object()
+        sync_webshare_job(app)
+        flash('Pool de Proxies sincronizado com sucesso via API do Webshare!', 'success')
+    except Exception as e:
+        flash(f'Erro ao sincronizar proxies: {str(e)}', 'danger')
+
+    return redirect(url_for('main.admin_proxies'))
+
+
+@main_bp.route('/admin/users', methods=['GET'])
+@login_required
+@admin_required
+def admin_users():
+    """Painel do Admin: Lista todos os usuários e permite alteração de status."""
+    users = User.query.order_by(User.created_at.desc()).all()
+    return render_template('main/admin_users.html', users=users)
+
+
+@main_bp.route('/admin/users/<int:user_id>/toggle-status', methods=['POST'])
+@login_required
+@admin_required
+def toggle_user_status(user_id):
+    """Admin ativa ou desativa a conta de um usuário."""
+    if user_id == current_user.id:
+        flash('Você não pode desativar sua própria conta de administrador.', 'warning')
+        return redirect(url_for('main.admin_users'))
+
+    user = User.query.get_or_404(user_id)
+    user.is_active = not user.is_active
+    db.session.commit()
+
+    status_str = "ativado" if user.is_active else "desativado"
+    flash(f'Usuário {user.full_name} foi {status_str} com sucesso!', 'success')
+    return redirect(url_for('main.admin_users'))
+
+
+# ==========================================
+# ROTAS DO USUÁRIO - VISÃO DE PROXIES
+# ==========================================
+
+@main_bp.route('/user/proxies', methods=['GET'])
+@login_required
+@user_active_required
+def user_proxies():
+    """Visão do Usuário: Lista apenas as proxies atribuídas a ele sem expor credenciais."""
+    proxies = Proxy.query.filter_by(user_id=current_user.id, status='ATIVO').all()
+    return render_template('main/user_proxies.html', proxies=proxies)
+
+
+# ==========================================
+# ROTAS DO USUÁRIO - GERENCIAMENTO DE LOBBIES
 # ==========================================
 
 @main_bp.route('/lobbies', methods=['GET'])
 @login_required
-@module_required
+@user_active_required
 def lobbies_list():
+    """Lista todos os lobbies pertencentes ao usuário logado."""
     lobbies = Lobby.query.filter_by(user_id=current_user.id).all()
 
     for lobby in lobbies:
         if hasattr(lobby, 'get_password'):
             lobby.decrypted_password = lobby.get_password()
 
-    # Busca APENAS os proxies ativos do usuário para os modais de edição
-    proxies_ativos = Proxy.query.filter_by(user_id=current_user.id, status='ATIVO').all()
+    # Busca as proxies do usuário para popular o modal de edição de lobby
+    user_proxies_list = Proxy.query.filter_by(user_id=current_user.id, status='ATIVO').all()
 
-    return render_template('main/lobbies_list.html', lobbies=lobbies, proxies_ativas=proxies_ativos)
+    return render_template('main/lobbies_list.html', lobbies=lobbies, user_proxies=user_proxies_list)
 
 
 @main_bp.route('/lobbies/novo', methods=['GET', 'POST'])
 @login_required
-@module_required
+@user_active_required
 def create_lobby():
+    """Cadastro de um novo lobby com validação de limite de proxies."""
+    # Busca proxies ATIVAS do usuário que ainda não estão vinculadas a nenhum lobby
+    user_proxies_list = Proxy.query.filter_by(user_id=current_user.id, status='ATIVO').all()
+    proxies_livres = [p for p in user_proxies_list if not p.is_in_use]
+
     if request.method == 'POST':
         nickname = request.form.get('nickname', '').strip()
         email = request.form.get('email', '').strip().lower()
         password = request.form.get('password')
         proxy_id = request.form.get('proxy_id', type=int)
 
-        # 1. Validação do Limite do Plano Básico
-        if len(current_user.lobbies) >= current_user.max_allowed_lobbies:
+        # 1. Validação do Limite de Lobbies do Usuário
+        if not current_user.can_create_lobby:
             flash(
-                f"O seu plano ({current_user.plan.title()}) permite no máximo {current_user.max_allowed_lobbies} lobby. Atualize para o Plano Premium!",
+                "Você atingiu o limite de Lobbies referente às suas proxies atribuídas. Solicite novas conexões ao administrador.",
                 "warning"
             )
             return redirect(url_for('main.lobbies_list'))
 
-        proxy = Proxy.query.filter_by(id=proxy_id, user_id=current_user.id).first()
+        # 2. Validação da Proxy selecionada
+        proxy = Proxy.query.filter_by(id=proxy_id, user_id=current_user.id, status='ATIVO').first()
         if not proxy:
-            flash("Proxy selecionado não foi encontrado.", "danger")
+            flash("Proxy selecionada inválida ou não pertence à sua conta.", "danger")
             return redirect(url_for('main.lobbies_list'))
 
-        # 2. Validação: O Proxy precisa estar ATIVO
-        if proxy.status != 'ATIVO':
-            flash("O Proxy selecionado está inativo.", "danger")
+        if proxy.is_in_use:
+            flash("A Proxy selecionada já está vinculada a outro lobby.", "danger")
             return redirect(url_for('main.lobbies_list'))
 
-        # 3. Validação: Vagas disponíveis no Proxy
-        if proxy.available <= 0:
-            flash(f"O Proxy '{proxy.address}:{proxy.port}' já está em uso.", "danger")
-            return redirect(url_for('main.lobbies_list'))
-
-        # Criação do Lobby vinculado ao Proxy
+        # 3. Criação do Lobby vinculado à Proxy
         novo_lobby = Lobby(
             nickname=nickname,
             email=email,
@@ -80,20 +176,17 @@ def create_lobby():
         db.session.add(novo_lobby)
         db.session.commit()
 
-        flash("Lobby criado e vinculado ao Proxy com sucesso!", "success")
+        flash("Lobby cadastrado com sucesso!", "success")
         return redirect(url_for('main.lobbies_list'))
 
-    # GET: Filtra proxies ativos do usuário que possuem vagas disponíveis
-    proxies_ativos = Proxy.query.filter_by(user_id=current_user.id, status='ATIVO').all()
-    proxies_disponiveis = [p for p in proxies_ativos if p.available > 0]
-
-    return render_template('main/create_lobby.html', vpns_disponiveis=proxies_disponiveis)
+    return render_template('main/create_lobby.html', user_proxies=proxies_livres)
 
 
 @main_bp.route('/lobbies/<int:lobby_id>/editar', methods=['POST'])
 @login_required
-@module_required
+@user_active_required
 def edit_lobby(lobby_id):
+    """Edição de credenciais ou alteração de proxy de um lobby existente."""
     lobby = Lobby.query.filter_by(id=lobby_id, user_id=current_user.id).first_or_404()
 
     nickname = request.form.get('nickname', '').strip()
@@ -105,19 +198,15 @@ def edit_lobby(lobby_id):
         flash('Apelido e E-mail são obrigatórios.', 'danger')
         return redirect(url_for('main.lobbies_list'))
 
-    # Se o Proxy foi alterado, valida a disponibilidade do novo proxy
+    # Se a Proxy foi alterada, valida a nova proxy
     if proxy_id and proxy_id != lobby.proxy_id:
-        novo_proxy = Proxy.query.filter_by(id=proxy_id, user_id=current_user.id).first()
+        novo_proxy = Proxy.query.filter_by(id=proxy_id, user_id=current_user.id, status='ATIVO').first()
         if not novo_proxy:
-            flash('Proxy selecionado não foi encontrado.', 'danger')
+            flash('Proxy selecionada não encontrada ou indisponível.', 'danger')
             return redirect(url_for('main.lobbies_list'))
 
-        if novo_proxy.status != 'ATIVO':
-            flash('O Proxy selecionado está inativo.', 'danger')
-            return redirect(url_for('main.lobbies_list'))
-
-        if novo_proxy.available <= 0:
-            flash('O Proxy selecionado já atingiu a capacidade máxima.', 'danger')
+        if novo_proxy.is_in_use:
+            flash('A nova Proxy selecionada já está em uso por outro lobby.', 'danger')
             return redirect(url_for('main.lobbies_list'))
 
         lobby.proxy_id = novo_proxy.id
@@ -135,12 +224,16 @@ def edit_lobby(lobby_id):
 
 @main_bp.route('/lobbies/<int:lobby_id>/deletar', methods=['POST'])
 @login_required
-@module_required
+@user_active_required
 def delete_lobby(lobby_id):
+    """Exclusão de um lobby pertencente ao usuário."""
     lobby = Lobby.query.filter_by(id=lobby_id, user_id=current_user.id).first_or_404()
 
     if hasattr(lobby, 'contas') and len(lobby.contas) > 0:
-        flash(f'Não é possível excluir o lobby "{lobby.nickname}" pois ele possui {len(lobby.contas)} conta(s) vinculada(s).', 'danger')
+        flash(
+            f'Não é possível excluir o lobby "{lobby.nickname}" pois ele possui {len(lobby.contas)} servidor(es) vinculado(s).',
+            'danger'
+        )
         return redirect(url_for('main.lobbies_list'))
 
     try:
@@ -157,17 +250,18 @@ def delete_lobby(lobby_id):
 
 @main_bp.route('/lobbies/<int:lobby_id>/toggle-status', methods=['POST'])
 @login_required
-@module_required
+@user_active_required
 def toggle_lobby_status(lobby_id):
+    """Alterna o status do lobby entre ATIVO e INATIVO."""
     lobby = Lobby.query.filter_by(id=lobby_id, user_id=current_user.id).first_or_404()
 
     if lobby.status == 'ATIVO':
         lobby.status = 'INATIVO'
         flash(f'Lobby "{lobby.nickname}" alterado para INATIVO.', 'warning')
     else:
-        # Trava: Não permite ativar se o proxy estiver Inativo ou se não existir proxy
+        # Trava: Não permite ativar se o proxy vinculado estiver inativo ou não existir
         if not lobby.proxy or lobby.proxy.status != 'ATIVO':
-            flash(f'Não é possível ativar o lobby "{lobby.nickname}" pois o Proxy vinculado está inativo.', 'danger')
+            flash(f'Não é possível ativar o lobby "{lobby.nickname}" pois a Proxy vinculada está inativa.', 'danger')
             return redirect(url_for('main.lobbies_list'))
 
         lobby.status = 'ATIVO'
@@ -175,40 +269,3 @@ def toggle_lobby_status(lobby_id):
 
     db.session.commit()
     return redirect(url_for('main.lobbies_list'))
-
-
-# ==========================================
-# ROTAS DE PROXIES (WEBSHARE)
-# ==========================================
-
-@main_bp.route('/proxies', methods=['GET'])
-@login_required
-@module_required
-def proxy_list():
-    """Lista apenas os proxies ATIVOS sincronizados do usuário."""
-    # ANTES: proxies = Proxy.query.filter_by(user_id=current_user.id).all()
-    proxies = Proxy.query.filter_by(user_id=current_user.id, status='ATIVO').all()
-    return render_template('main/proxy_list.html', proxies=proxies)
-
-
-# Alias para retrocompatibilidade caso alguma rota antiga chame proxies_list
-@main_bp.route('/proxies-list', methods=['GET'])
-@login_required
-@module_required
-def proxies_list():
-    return redirect(url_for('main.proxy_list'))
-
-
-@main_bp.route('/proxies/sincronizar', methods=['POST', 'GET'])
-@login_required
-@module_required
-def sync_proxies():
-    """Executa a sincronização manual acionando a mesma rotina (job) do APScheduler."""
-    try:
-        app = current_app._get_current_object()
-        sync_webshare_job(app)
-        flash('Proxies sincronizados com sucesso via API do Webshare!', 'success')
-    except Exception as e:
-        flash(f'Erro ao sincronizar proxies: {str(e)}', 'danger')
-
-    return redirect(url_for('main.proxy_list'))

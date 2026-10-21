@@ -21,8 +21,8 @@ def login():
             flash('E-mail ou senha incorretos. Tente novamente.', 'danger')
             return redirect(url_for('auth.login'))
 
-        if not user.is_active:
-            flash('Sua conta ainda não está ativa. Aguardando confirmação de pagamento.', 'warning')
+        if hasattr(user, 'is_active') and not user.is_active:
+            flash('Sua conta está inativa. Entre em contato com o suporte.', 'warning')
             return redirect(url_for('auth.login'))
 
         login_user(user, remember=remember)
@@ -33,48 +33,35 @@ def login():
 
 @auth_bp.route('/register', methods=['GET', 'POST'])
 def register():
+    if current_user.is_authenticated:
+        return redirect(url_for('main.index'))
+
     if request.method == 'POST':
         full_name = request.form.get('name', '').strip()
         email = request.form.get('email', '').strip().lower()
         password = request.form.get('password')
         confirm_password = request.form.get('confirm_password')
-        plan = request.form.get('plan', 'basico')
-        plan_cycle = request.form.get('plan_cycle', 'mensal')
-        payment_method = request.form.get('payment_method')
-        terms = request.form.get('terms')
 
         if password != confirm_password:
             flash("As senhas digitadas não coincidem!", "danger")
             return redirect(url_for('auth.register'))
 
-        if not terms:
-            flash('Você precisa aceitar os Termos de Uso.', 'warning')
-            return redirect(url_for('auth.register'))
+        existing_user = User.query.filter_by(email=email).first()
 
-        user = User.query.filter_by(email=email).first()
+        if existing_user:
+            flash('Este e-mail já está cadastrado. Faça login.', 'info')
+            return redirect(url_for('auth.login'))
 
-        if user:
-            if user.is_active:
-                flash('Este e-mail já possui uma conta ativa. Faça login.', 'info')
-                return redirect(url_for('auth.login'))
-            else:
-                user.full_name = full_name
-                user.payment_method = payment_method
-                user.set_password(password)
-                user.activate_plan(plan_type=plan, plan_cycle=plan_cycle)
-        else:
-            user = User(
-                full_name=full_name,
-                email=email,
-                payment_method=payment_method,
-                is_active=True,
-                payment_status='pago'
-            )
-            user.set_password(password)
-            user.activate_plan(plan_type=plan, plan_cycle=plan_cycle)
-            db.session.add(user)
+        # Criação de novo usuário padrão (is_admin = 0)
+        user = User(
+            full_name=full_name,
+            email=email,
+            is_admin=0
+        )
+        user.set_password(password)
 
         try:
+            db.session.add(user)
             db.session.commit()
             flash('Cadastro realizado com sucesso! Faça login para acessar sua conta.', 'success')
             return redirect(url_for('auth.login'))
@@ -95,9 +82,7 @@ def forgot_password():
             flash('Nenhum usuário foi encontrado com este e-mail.', 'danger')
             return redirect(url_for('auth.forgot_password'))
 
-        # Guarda temporariamente o e-mail validado na sessão
         session['reset_email'] = user.email
-        # Sinaliza para o frontend abrir o modal de redefinição
         return render_template('auth/forgot_password.html', show_modal=True, email=user.email)
 
     return render_template('auth/forgot_password.html', show_modal=False)
@@ -125,7 +110,6 @@ def reset_password():
     user.set_password(password)
     db.session.commit()
 
-    # Limpa a variável da sessão
     session.pop('reset_email', None)
 
     flash('Sua senha foi redefinida com sucesso! Acesse com a nova senha.', 'success')

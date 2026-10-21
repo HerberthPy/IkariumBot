@@ -1,11 +1,11 @@
 {% extends "base.html" %}
 
-{% block title %}Criar Conta e Escolher Plano - IkariumBot{% endblock %}
+{% block title %}Criar Conta - IkariumBot{% endblock %}
 
 {% block content %}
 <main class="container d-flex align-items-center min-vh-100 py-5">
   <div class="row justify-content-center w-100 m-0">
-    <div class="col-12 col-sm-10 col-md-9 col-lg-7 col-xl-6">
+    <div class="col-12 col-sm-10 col-md-8 col-lg-6 col-xl-5">
 
       <!-- Card Principal -->
       <div class="card border-0 shadow-sm rounded-4 p-4 p-sm-5 bg-white">
@@ -13,10 +13,10 @@
         <!-- Header / Logo -->
         <div class="text-center mb-4">
           <div class="bg-primary text-white d-inline-flex align-items-center justify-content-center rounded-circle mb-3" style="width: 56px; height: 56px;">
-            <i class="bi bi-rocket-takeoff-fill fs-3"></i>
+            <i class="bi bi-person-plus-fill fs-3"></i>
           </div>
-          <h1 class="h4 fw-bold mb-1">Crie sua Conta e Escolha seu Plano</h1>
-          <p class="text-secondary small">Comece a automatizar seus processos hoje mesmo</p>
+          <h1 class="h4 fw-bold mb-1">Crie sua Conta</h1>
+          <p class="text-secondary small">Preencha os dados abaixo para começar a usar o IkariumBot</p>
         </div>
 
         <!-- Mensagens Flash de Alerta -->
@@ -34,132 +34,38 @@
         <!-- Formulário de Cadastro -->
         <form action="{{ url_for('auth.register') }}" method="POST">
 
-          <!-- SEÇÃO 1: Dados Pessoais -->
-          <h6 class="fw-bold text-dark mb-3 border-bottom pb-2">
-            <i class="bi bi-person me-1 text-primary"></i> 1. Dados Pessoais
-          </h6>
-
+          <!-- Nome Completo -->
           <div class="form-floating mb-3">
             <input type="text" class="form-control rounded-3" id="name" name="name" placeholder="Seu Nome" required>
             <label for="name">Nome Completo</label>
           </div>
 
+          <!-- E-mail -->
           <div class="form-floating mb-3">
             <input type="email" class="form-control rounded-3" id="email" name="email" placeholder="nome@exemplo.com" required>
             <label for="email">E-mail</label>
           </div>
 
-          <div class="row g-2 mb-4">
-            <div class="col-md-6">
-              <div class="form-floating">
-                <input type="password" class="form-control rounded-3" id="password" name="password" placeholder="Senha" required>
-                <label for="password">Senha</label>
-              </div>
+          <!-- Senha com Olho para Alternar Visibilidade -->
+          <div class="input-group mb-3">
+            <div class="form-floating flex-grow-1">
+              <input type="password" class="form-control rounded-start-3" id="password" name="password" placeholder="Senha" required>
+              <label for="password">Senha</label>
             </div>
-            <div class="col-md-6">
-              <div class="form-floating">
-                <input type="password" class="form-control rounded-3" id="confirm_password" name="confirm_password" placeholder="Confirme a Senha" required>
-                <label for="confirm_password">Confirmar Senha</label>
-              </div>
+            <button class="btn btn-outline-secondary px-3 border" type="button" onclick="togglePasswordVisibility('password', 'togglePasswordIcon')">
+              <i class="bi bi-eye" id="togglePasswordIcon"></i>
+            </button>
+          </div>
+
+          <!-- Confirmar Senha com Olho para Alternar Visibilidade -->
+          <div class="input-group mb-4">
+            <div class="form-floating flex-grow-1">
+              <input type="password" class="form-control rounded-start-3" id="confirm_password" name="confirm_password" placeholder="Confirme a Senha" required>
+              <label for="confirm_password">Confirmar Senha</label>
             </div>
-          </div>
-
-          <!-- SEÇÃO 2: Escolha do Plano -->
-          <div class="mb-4">
-              <div class="d-flex justify-content-between align-items-center mb-3">
-                  <h6 class="fw-bold text-dark mb-0 border-bottom pb-2 flex-grow-1">
-                      <i class="bi bi-credit-card me-1 text-primary"></i> 2. Escolha seu Plano
-                  </h6>
-
-                  <!-- Toggle Mensal / Anual -->
-                  <div class="bg-light p-1 rounded-pill border d-inline-flex align-items-center ms-2">
-                      <input type="radio" class="btn-check" name="plan_cycle" id="cycle_mensal" value="mensal" checked autocomplete="off">
-                      <label class="btn btn-sm btn-outline-primary rounded-pill px-3 border-0 fw-semibold" for="cycle_mensal">Mensal</label>
-
-                      <input type="radio" class="btn-check" name="plan_cycle" id="cycle_anual" value="anual" autocomplete="off">
-                      <label class="btn btn-sm btn-outline-primary rounded-pill px-3 border-0 fw-semibold position-relative" for="cycle_anual">Anual
-                          <span class="badge bg-success position-absolute top-0 start-100 translate-middle rounded-pill" style="font-size: 0.65rem;">-15%</span>
-                      </label>
-                  </div>
-              </div>
-
-              <!-- Input Escondido com o plano selecionado -->
-              <input type="hidden" name="plan" id="selected_plan" value="basico">
-
-              <div class="row g-3">
-                  <!-- Card Plano Básico -->
-                  <div class="col-md-6">
-                      <div class="card plan-card h-100 border-2 border-warning shadow-sm rounded-4 bg-warning-subtle" id="card_basico" onclick="selectPlan('basico')" style="cursor: pointer;">
-                          <div class="card-body p-4 position-relative">
-                              <div class="d-flex justify-content-between align-items-center mb-2">
-                                  <h5 class="fw-bold mb-0 text-dark">Plano Básico</h5>
-                                  <i class="bi bi-check-circle-fill text-dark fs-5" id="check_basico"></i>
-                              </div>
-
-                              <div class="my-3">
-                                  <span class="fs-2 fw-bold text-dark" id="price_basico">R$ 29,90</span>
-                                  <span class="text-muted small" id="period_basico">/mês</span>
-                              </div>
-
-                              <ul class="list-unstyled text-secondary small mb-0 lh-lg">
-                                  <li><i class="bi bi-check2 text-dark me-1"></i> Até 1 Lobby Ativo</li>
-                                  <li><i class="bi bi-check2 text-dark me-1"></i> Suporte por E-mail</li>
-                                  <li><i class="bi bi-check2 text-dark me-1"></i> Execuções diárias</li>
-                              </ul>
-                          </div>
-                      </div>
-                  </div>
-
-                  <!-- Card Plano Premium -->
-                  <div class="col-md-6">
-                      <div class="card plan-card h-100 border rounded-4 bg-white" id="card_premium" onclick="selectPlan('premium')" style="cursor: pointer;">
-                          <div class="card-body p-4 position-relative">
-                              <div class="d-flex justify-content-between align-items-center mb-2">
-                                  <h5 class="fw-bold mb-0 text-warning">Plano Premium</h5>
-                                  <span class="badge bg-warning text-dark rounded-pill px-2 py-1 small fw-semibold" id="badge_premium">Mais Popular</span>
-                                  <i class="bi bi-check-circle-fill text-warning fs-5 d-none" id="check_premium"></i>
-                              </div>
-
-                              <div class="my-3">
-                                  <span class="fs-2 fw-bold text-dark" id="price_premium">R$ 59,90</span>
-                                  <span class="text-muted small" id="period_premium">/mês</span>
-                              </div>
-
-                              <ul class="list-unstyled text-secondary small mb-0 lh-lg">
-                                  <li><i class="bi bi-check2 text-primary me-1"></i> Todo Plano Básico incluso</li>
-                                  <li><i class="bi bi-check2 text-primary me-1"></i> 1 VPN Grátis Inclusa</li>
-                                  <li><i class="bi bi-check2 text-primary me-1"></i> Suporte Prioritário 24/7</li>
-                                  <li><i class="bi bi-check2 text-primary me-1"></i> Acesso antecipado a novos recursos</li>
-                              </ul>
-                          </div>
-                      </div>
-                  </div>
-              </div>
-          </div>
-
-          <!-- SEÇÃO 3: Forma de Pagamento -->
-          <h6 class="fw-bold text-dark mb-3 border-bottom pb-2">
-              <i class="bi bi-wallet2 me-1 text-primary"></i> 3. Forma de Pagamento
-          </h6>
-
-          <div class="mb-4">
-              <select class="form-select py-2.5 rounded-3 mb-2" id="payment_method" name="payment_method" required>
-                  <option value="" selected disabled>Selecione como prefere pagar...</option>
-                  <option value="cartao">Cartão de Crédito (Renovação Automática)</option>
-                  <option value="pix">PIX (Com 5% de desconto)</option>
-                  <option value="boleto">Boleto Bancário (Mensal)</option>
-              </select>
-              <span class="text-muted small d-block">
-                  <i class="bi bi-shield-check text-success me-1"></i> Cobrança recorrente. Você pode cancelar a qualquer momento sem fidelidade.
-              </span>
-          </div>
-
-          <!-- Termos de Aceite -->
-          <div class="form-check mb-4 small">
-              <input class="form-check-input" type="checkbox" id="terms" name="terms" required>
-              <label class="form-check-label text-secondary" for="terms">
-                  Eu concordo com os <a href="#" class="text-primary text-decoration-none">Termos de Uso</a> e autorizo a cobrança recorrente.
-              </label>
+            <button class="btn btn-outline-secondary px-3 border" type="button" onclick="togglePasswordVisibility('confirm_password', 'toggleConfirmPasswordIcon')">
+              <i class="bi bi-eye" id="toggleConfirmPasswordIcon"></i>
+            </button>
           </div>
 
           <!-- Botão Concluir -->
@@ -185,53 +91,18 @@
 
 {% block extra_js %}
 <script>
-// Tabela de Preços
-const prices = {
-    mensal: {
-        basico: { price: "R$ 29,90", period: "/mês" },
-        premium: { price: "R$ 59,90", period: "/mês" }
-    },
-    anual: {
-        basico: { price: "R$ 299,00", period: "/ano" },
-        premium: { price: "R$ 599,00", period: "/ano" }
-    }
-};
+function togglePasswordVisibility(inputId, iconId) {
+    const input = document.getElementById(inputId);
+    const icon = document.getElementById(iconId);
 
-// Alterna entre Mensal e Anual
-document.querySelectorAll('input[name="plan_cycle"]').forEach(radio => {
-    radio.addEventListener('change', (e) => {
-        const cycle = e.target.value;
-
-        // Atualiza Preços na Tela
-        document.getElementById('price_basico').innerText = prices[cycle].basico.price;
-        document.getElementById('period_basico').innerText = prices[cycle].basico.period;
-
-        document.getElementById('price_premium').innerText = prices[cycle].premium.price;
-        document.getElementById('period_premium').innerText = prices[cycle].period;
-    });
-});
-
-// Seleciona o Plano (Básico / Premium)
-function selectPlan(planType) {
-    document.getElementById('selected_plan').value = planType;
-
-    const cardBasico = document.getElementById('card_basico');
-    const cardPremium = document.getElementById('card_premium');
-    const checkBasico = document.getElementById('check_basico');
-    const checkPremium = document.getElementById('check_premium');
-
-    if (planType === 'basico') {
-        cardBasico.className = "card plan-card h-100 border-2 border-warning shadow-sm rounded-4 bg-warning-subtle";
-        cardPremium.className = "card plan-card h-100 border rounded-4 bg-white";
-
-        checkBasico.classList.remove('d-none');
-        checkPremium.classList.add('d-none');
+    if (input.type === 'password') {
+        input.type = 'text';
+        icon.classList.remove('bi-eye');
+        icon.classList.add('bi-eye-slash');
     } else {
-        cardPremium.className = "card plan-card h-100 border-2 border-warning shadow-sm rounded-4 bg-warning-subtle";
-        cardBasico.className = "card plan-card h-100 border rounded-4 bg-white";
-
-        checkPremium.classList.remove('d-none');
-        checkBasico.classList.add('d-none');
+        input.type = 'password';
+        icon.classList.remove('bi-eye-slash');
+        icon.classList.add('bi-eye');
     }
 }
 </script>

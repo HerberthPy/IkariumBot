@@ -45,15 +45,16 @@ def create_app(config_class=Config):
         from app.models import User, Proxy, Lobby
         db.create_all()
 
-        # Registro do Job de Sincronização Automática (A cada 10 minutos = 600 segundos)
+        # Registro do Job de Sincronização Automática (A cada 30 minutos = 1800 segundos)
         from app.main.tasks import sync_webshare_job
         if not scheduler.get_job('job_sync_proxies'):
             scheduler.add_job(
                 id='job_sync_proxies',
                 func=sync_webshare_job,
                 trigger='interval',
-                seconds=600,  # 60 segundos x 10 minutos = 600 segundos
-                args=[app]
+                seconds=1800,  # 30 minutos
+                args=[app],
+                replace_existing=True
             )
 
     # Registra handlers de erro globais

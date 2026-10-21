@@ -1,5 +1,5 @@
 import base64
-from datetime import datetime, timedelta
+from datetime import datetime
 import pytz
 from flask import current_app
 from flask_login import UserMixin
@@ -14,83 +14,6 @@ def get_brasilia_time():
     return datetime.now(tz)
 
 
-class User(UserMixin, db.Model):
-    __tablename__ = 'users'
-
-    id = db.Column(db.Integer, primary_key=True)
-    full_name = db.Column(db.String(100))
-    email = db.Column(db.String(120), unique=True, nullable=False)
-    password_hash = db.Column(db.String(255), nullable=False)
-
-    # Plano e Pagamento
-    plan = db.Column(db.String(20), default='basico')  # 'basico' ou 'premium'
-    plan_cycle = db.Column(db.String(20), default='mensal')  # 'mensal' ou 'anual'
-    payment_method = db.Column(db.String(20))
-    payment_status = db.Column(db.String(20), default='pago')  # 'pago', 'pending', 'vencido'
-    is_active = db.Column(db.Boolean, default=True)
-
-    # Datas de Controle de Assinatura (Fuso de Brasília)
-    created_at = db.Column(db.DateTime, default=get_brasilia_time)
-    expires_at = db.Column(db.DateTime, nullable=True)
-
-    # Relacionamentos
-    proxies = db.relationship('Proxy', backref='owner', lazy=True, cascade='all, delete-orphan')
-    lobbies = db.relationship('Lobby', backref='owner', lazy=True, cascade='all, delete-orphan')
-
-    def set_password(self, password):
-        self.password_hash = generate_password_hash(password)
-
-    def check_password(self, password):
-        return check_password_hash(self.password_hash, password)
-
-    def activate_plan(self, plan_type='basico', plan_cycle='mensal'):
-        """Define/renova o plano e calcula a nova data de expiração no fuso de Brasília."""
-        now_bsb = get_brasilia_time()
-        self.plan = plan_type
-        self.plan_cycle = plan_cycle
-        self.payment_status = 'pago'
-
-        if plan_cycle == 'anual':
-            self.expires_at = now_bsb + timedelta(days=365)
-        else:
-            self.expires_at = now_bsb + timedelta(days=30)
-
-    @property
-    def days_remaining(self):
-        """Calcula os dias restantes (D-1) até o plano expirar."""
-        if not self.expires_at:
-            return 0
-        now_bsb = get_brasilia_time().replace(tzinfo=None)
-        expires = self.expires_at.replace(tzinfo=None)
-        delta = expires - now_bsb
-        return max(0, delta.days)
-
-    @property
-    def is_plan_expired(self):
-        """Retorna True se a data atual ultrapassou a expiração."""
-        if not self.expires_at:
-            return True
-        now_bsb = get_brasilia_time().replace(tzinfo=None)
-        return now_bsb >= self.expires_at.replace(tzinfo=None)
-
-    @property
-    def is_modules_active(self):
-        """Retorna True se o plano estiver em dia, mantendo os módulos ativos."""
-        return not self.is_plan_expired and self.payment_status == 'pago'
-
-    @property
-    def show_expiration_alert(self):
-        """Alerta de 10 dias ou menos para o vencimento."""
-        return 0 < self.days_remaining <= 10 and not self.is_plan_expired
-
-    @property
-    def max_allowed_lobbies(self):
-        """Plano Básico permite apenas 1 Lobby; Premium é ilimitado."""
-        if self.plan == 'basico':
-            return 1
-        return 9999
-
-
 def get_cipher():
     """Retorna o objeto Fernet usando FERNET_KEY ou derivando de SECRET_KEY."""
     fernet_key = current_app.config.get('FERNET_KEY')
@@ -102,43 +25,86 @@ def get_cipher():
     return Fernet(key)
 
 
+class User(UserMixin, db.Model):
+    __tablename__ = 'users'
+
+    id = db.Column(db.Integer, primary_key=True)
+    full_name = db.Column(db.String(100), nullable=False)
+    email = db.Column(db.String(120), unique=True, nullable=False)
+    password_hash = db.Column(db.String(255), nullable=False)
+
+    # 0 = Usuário comum (padrão) | 1 = Administrador
+    is_admin = db.Column(db.Integer, default=0, nullable=False)
+    is_active = db.Column(db.Boolean, default=True)
+
+    created_at = db.Column(db.DateTime, default=get_brasilia_time)
+
+    # Proxies atribuídas pelo Admin a este Usuário
+    assigned_proxies = db.relationship('Proxy', backref='assigned_user', lazy=True)
+
+    # Lobbies criados por este Usuário
+    lobbies = db.relationship('Lobby', backref='owner', lazy=True, cascade='all, delete-orphan')
+
+    def set_password(self, password):
+        self.password_hash = generate_password_hash(password)
+
+    def check_password(self, password):
+        return check_password_hash(self.password_hash, password)
+
+    @property
+    def max_allowed_lobbies(self):
+        """O limite de lobbies é exatamente a quantidade de proxies atribuídas ao usuário."""
+        return len(self.assigned_proxies)
+
+    @property
+    def total_lobbies(self):
+        """Retorna a quantidade total de lobbies criados pelo usuário."""
+        return len(self.lobbies)
+
+    @property
+    def can_create_lobby(self):
+        """Retorna True se o usuário ainda possui margem para criar novos lobbies."""
+        return self.total_lobbies < self.max_allowed_lobbies
+
+
 class Proxy(db.Model):
     __tablename__ = 'proxies'
 
     id = db.Column(db.Integer, primary_key=True)
     address = db.Column(db.String(100), nullable=False)  # Endereço IP / Host
-    port = db.Column(db.Integer, nullable=False)  # Porta HTTP/SOCKS5
-    username = db.Column(db.String(100), nullable=False)  # Usuário do Webshare
-    password_encrypted = db.Column(db.String(255), nullable=False)  # Senha Criptografada
+    port = db.Column(db.Integer, nullable=False)  # Porta
+    username = db.Column(db.String(100), nullable=True)  # Usuário
+    password_encrypted = db.Column(db.String(255), nullable=True)  # Senha Criptografada
     country = db.Column(db.String(10), nullable=True)  # Código do país (ex: BR, US)
-    status = db.Column(db.String(20), default='ATIVO')  # 'ATIVO' ou 'INATIVO'
-    capacity = db.Column(db.Integer, default=1, nullable=False)  # Qtd de Lobbies permitidos por proxy
+    status = db.Column(db.String(20), default='ATIVO')  # 'ATIVO' ou 'INATIVO' (definido pelo Admin)
     created_at = db.Column(db.DateTime, default=get_brasilia_time)
 
-    # Chave Estrangeira (FK do Usuário Dono)
-    user_id = db.Column(db.Integer, db.ForeignKey('users.id'), nullable=False)
+    # FK do Usuário a quem o Admin atribuiu este Proxy (None = Disponível no Pool Geral)
+    user_id = db.Column(db.Integer, db.ForeignKey('users.id'), nullable=True)
 
-    # Relacionamento com Lobbies
+    # Relacionamento com Lobbies (Lobbies que estão utilizando esta proxy)
     lobbies = db.relationship('Lobby', backref='proxy', lazy=True)
 
     @property
-    def used(self):
-        """Retorna a quantidade de lobbies atualmente usando este Proxy."""
-        return len(self.lobbies)
+    def is_assigned(self):
+        """Retorna True se o Admin já atribuiu esta proxy a um Usuário."""
+        return self.user_id is not None
 
     @property
-    def available(self):
-        """Calcula dinamicamente as vagas restantes no Proxy."""
-        return max(0, self.capacity - self.used)
+    def is_in_use(self):
+        """Retorna True se algum Lobby do usuário está atualmente vinculado a esta proxy."""
+        return len(self.lobbies) > 0
 
     def set_password(self, password):
         """Criptografa a senha do proxy antes de salvar."""
         if password:
             cipher = get_cipher()
             self.password_encrypted = cipher.encrypt(password.encode('utf-8')).decode('utf-8')
+        else:
+            self.password_encrypted = None
 
     def get_password(self):
-        """Descriptografa a senha do proxy para uso nas chamadas do bot ou exibição."""
+        """Descriptografa a senha do proxy."""
         if not self.password_encrypted:
             return ""
         try:
@@ -148,27 +114,30 @@ class Proxy(db.Model):
             return self.password_encrypted
 
     def get_proxy_url(self):
-        """Retorna a string completa formatada para Playwright/Requests (ex: http://user:pass@ip:port)."""
-        return f"http://{self.username}:{self.get_password()}@{self.address}:{self.port}"
+        """Retorna a string formatada para conexões (http://user:pass@ip:port ou http://ip:port)."""
+        pwd = self.get_password()
+        if self.username and pwd:
+            return f"http://{self.username}:{pwd}@{self.address}:{self.port}"
+        return f"http://{self.address}:{self.port}"
 
 
 class Lobby(db.Model):
     __tablename__ = 'lobbies'
 
     id = db.Column(db.Integer, primary_key=True)
-    nickname = db.Column(db.String(100), nullable=False)  # APELIDO
-    email = db.Column(db.String(120), nullable=False)  # E-MAIL
-    password_encrypted = db.Column(db.String(255), nullable=False)  # SENHA CRIPTOGRAFADA
-    status = db.Column(db.String(20), default='ATIVO')  # 'ATIVO' ou 'INATIVO'
+    nickname = db.Column(db.String(100), nullable=False)
+    email = db.Column(db.String(120), nullable=False)
+    password_encrypted = db.Column(db.String(255), nullable=False)
+    status = db.Column(db.String(20), default='ATIVO')
     created_at = db.Column(db.DateTime, default=get_brasilia_time)
 
-    # Chaves Estrangeiras (FK)
+    # Dono do Lobby e Proxy vinculada
     user_id = db.Column(db.Integer, db.ForeignKey('users.id'), nullable=False)
     proxy_id = db.Column(db.Integer, db.ForeignKey('proxies.id'), nullable=True)
 
     @property
     def country(self):
-        """Herda dinamicamente o código do país a partir do Proxy vinculado."""
+        """Herda dinamicamente o país a partir da Proxy vinculada."""
         if self.proxy and self.proxy.country:
             return self.proxy.country
         return "N/A"
@@ -180,7 +149,7 @@ class Lobby(db.Model):
             self.password_encrypted = cipher.encrypt(password.encode('utf-8')).decode('utf-8')
 
     def get_password(self):
-        """Descriptografa a senha para exibição no frontend."""
+        """Descriptografa a senha para uso do bot ou exibição."""
         if not self.password_encrypted:
             return ""
         try:
