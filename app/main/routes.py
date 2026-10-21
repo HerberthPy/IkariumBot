@@ -1,11 +1,11 @@
-from flask import render_template, request, redirect, url_for, flash, current_app
+from flask import render_template, request, redirect, url_for, flash, current_app, jsonify
 from flask_login import login_required, current_user
 from app import db
 from app.models import Proxy, Lobby, User
 from app.main import main_bp
 from app.main.tasks import sync_webshare_job
 from app.main.decorators import admin_required, user_active_required
-from app.bot.runner import BotManager
+from app.bot import BotManager
 
 
 @main_bp.route('/')
@@ -350,3 +350,20 @@ def stop_all_bots():
         flash('Nenhum navegador estava em execução no momento.', 'info')
 
     return redirect(url_for('main.lobbies_list'))
+
+
+@main_bp.route('/api/lobbies/status', methods=['GET'])
+@login_required
+@user_active_required
+def get_lobbies_status():
+    """Retorna o status atualizado em JSON de todos os lobbies do usuário."""
+    lobbies = Lobby.query.filter_by(user_id=current_user.id).all()
+
+    status_data = {}
+    for lobby in lobbies:
+        status_data[lobby.id] = {
+            'status': lobby.status,
+            'is_running': BotManager.is_running(lobby.id)
+        }
+
+    return jsonify(status_data)

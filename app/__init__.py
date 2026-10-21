@@ -4,6 +4,7 @@ from flask_login import LoginManager
 from flask_apscheduler import APScheduler
 from config import Config
 
+# Instâncias dos plugins (precisam ficar no topo para evitar circular import)
 db = SQLAlchemy()
 login_manager = LoginManager()
 scheduler = APScheduler()
@@ -11,12 +12,11 @@ scheduler = APScheduler()
 
 def restore_active_bots(app):
     """Verifica e restaura as instâncias do Playwright para os Lobbies
-
     que estavam marcados como ATIVOS antes do servidor cair/reiniciar.
     """
     with app.app_context():
         from app.models import Lobby
-        from app.bot.runner import BotManager
+        from app.bot import BotManager
 
         # Busca todos os lobbies que estavam salvos como ATIVO no banco
         lobbies_ativos = Lobby.query.filter_by(status='ATIVO').all()
@@ -33,6 +33,10 @@ def create_app(config_class=Config):
     app = Flask(__name__)
     app.config.from_object(config_class)
 
+    # IMPORT LOCAL: evita circular import com o pacote app.bot
+    from app.bot.utils.worlds import get_world_name
+    app.jinja_env.filters['nome_mundo'] = get_world_name
+
     db.init_app(app)
     login_manager.init_app(app)
 
@@ -41,7 +45,7 @@ def create_app(config_class=Config):
 
     login_manager.login_view = 'auth.login'
     login_manager.login_message = ''
-    login_manager.login_message_category = 'warning'
+    login_message_category = 'warning'
 
     from app.models import User
 

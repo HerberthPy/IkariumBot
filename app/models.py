@@ -135,6 +135,9 @@ class Lobby(db.Model):
     user_id = db.Column(db.Integer, db.ForeignKey('users.id'), nullable=False)
     proxy_id = db.Column(db.Integer, db.ForeignKey('proxies.id'), nullable=True)
 
+    # Relacionamento com as Contas (Servidores) capturadas no Lobby
+    contas = db.relationship('Conta', backref='lobby', lazy=True, cascade='all, delete-orphan')
+
     @property
     def country(self):
         """Herda dinamicamente o país a partir da Proxy vinculada."""
@@ -157,3 +160,22 @@ class Lobby(db.Model):
             return cipher.decrypt(self.password_encrypted.encode('utf-8')).decode('utf-8')
         except (InvalidToken, Exception):
             return self.password_encrypted
+
+
+class Conta(db.Model):
+    __tablename__ = 'contas'
+
+    id = db.Column(db.Integer, primary_key=True)
+    gameforge_account_id = db.Column(db.String(100), nullable=True, index=True)  # ID único da conta na Gameforge
+    servidor = db.Column(db.String(100), nullable=False)                          # Ex: Alpha, Beta, etc.
+    pais = db.Column(db.String(10), nullable=False, default='pt')                 # Ex: pt, br, en
+    nome_usuario = db.Column(db.String(100), nullable=False)                      # Nome do jogador no servidor
+    email = db.Column(db.String(120), nullable=False)                             # E-mail associado
+    ativo = db.Column(db.Boolean, default=True)                                   # Status da conta na Gameforge
+    created_at = db.Column(db.DateTime, default=get_brasilia_time)
+
+    # Chave estrangeira vinculando a conta ao Lobby
+    lobby_id = db.Column(db.Integer, db.ForeignKey('lobbies.id'), nullable=False)
+
+    def __repr__(self):
+        return f'<Conta {self.nome_usuario} @ {self.servidor} ({self.pais})>'
