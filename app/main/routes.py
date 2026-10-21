@@ -5,6 +5,7 @@ from app.models import Proxy, Lobby, User
 from app.main import main_bp
 from app.main.tasks import sync_webshare_job
 from app.main.decorators import admin_required, user_active_required
+from app.bot.runner import BotManager
 
 
 @main_bp.route('/')
@@ -46,11 +47,23 @@ def assign_proxy(proxy_id):
         proxy.user_id = user.id
         flash(f'Proxy #{proxy.id} atribuída com sucesso ao usuário {user.full_name}!', 'success')
     else:
-        # Se unassign (devolver ao pool global)
         proxy.user_id = None
         flash(f'Proxy #{proxy.id} devolvida ao Pool Global.', 'info')
 
     db.session.commit()
+    return redirect(url_for('main.admin_proxies'))
+
+
+@main_bp.route('/admin/proxies/<int:proxy_id>/unassign', methods=['POST'])
+@login_required
+@admin_required
+def unassign_proxy(proxy_id):
+    """Admin desvincula a proxy do usuário e devolve ao Pool Global."""
+    proxy = Proxy.query.get_or_404(proxy_id)
+    proxy.user_id = None
+    db.session.commit()
+
+    flash(f'Proxy #{proxy.id} devolvida ao Pool Global com sucesso.', 'info')
     return redirect(url_for('main.admin_proxies'))
 
 
@@ -110,7 +123,7 @@ def user_proxies():
 
 
 # ==========================================
-# ROTAS DO USUÁRIO - GERENCIAMENTO DE LOBBIES
+# ROTAS DO USUÁRIO - GERENCIAMENTO DE LOBBIES E AUTOMAÇÃO
 # ==========================================
 
 @main_bp.route('/lobbies', methods=['GET'])
@@ -123,8 +136,9 @@ def lobbies_list():
     for lobby in lobbies:
         if hasattr(lobby, 'get_password'):
             lobby.decrypted_password = lobby.get_password()
+        # Marca dinamicamente no objeto se a instância Playwright do lobby está rodando
+        lobby.is_running = BotManager.is_running(lobby.id)
 
-    # Busca as proxies do usuário para popular o modal de edição de lobby
     user_proxies_list = Proxy.query.filter_by(user_id=current_user.id, status='ATIVO').all()
 
     return render_template('main/lobbies_list.html', lobbies=lobbies, user_proxies=user_proxies_list)
@@ -135,7 +149,6 @@ def lobbies_list():
 @user_active_required
 def create_lobby():
     """Cadastro de um novo lobby com validação de limite de proxies."""
-    # Busca proxies ATIVAS do usuário que ainda não estão vinculadas a nenhum lobby
     user_proxies_list = Proxy.query.filter_by(user_id=current_user.id, status='ATIVO').all()
     proxies_livres = [p for p in user_proxies_list if not p.is_in_use]
 
@@ -145,15 +158,13 @@ def create_lobby():
         password = request.form.get('password')
         proxy_id = request.form.get('proxy_id', type=int)
 
-        # 1. Validação do Limite de Lobbies do Usuário
         if not current_user.can_create_lobby:
             flash(
-                "Você atingiu o limite de Lobbies referente às suas proxies atribuídas. Solicite novas conexões ao administrador.",
+                "Você atingiu o limite de Lobbies referente às suas proxies atribuídas.",
                 "warning"
             )
             return redirect(url_for('main.lobbies_list'))
 
-        # 2. Validação da Proxy selecionada
         proxy = Proxy.query.filter_by(id=proxy_id, user_id=current_user.id, status='ATIVO').first()
         if not proxy:
             flash("Proxy selecionada inválida ou não pertence à sua conta.", "danger")
@@ -163,7 +174,6 @@ def create_lobby():
             flash("A Proxy selecionada já está vinculada a outro lobby.", "danger")
             return redirect(url_for('main.lobbies_list'))
 
-        # 3. Criação do Lobby vinculado à Proxy
         novo_lobby = Lobby(
             nickname=nickname,
             email=email,
@@ -176,7 +186,11 @@ def create_lobby():
         db.session.add(novo_lobby)
         db.session.commit()
 
-        flash("Lobby cadastrado com sucesso!", "success")
+        # Inicia a navegação imediatamente para o lobby recém-criado
+        app = current_app._get_current_object()
+        BotManager.start_lobby(novo_lobby.id, app)
+
+        flash("Lobby cadastrado e automação iniciada com sucesso!", "success")
         return redirect(url_for('main.lobbies_list'))
 
     return render_template('main/create_lobby.html', user_proxies=proxies_livres)
@@ -198,7 +212,6 @@ def edit_lobby(lobby_id):
         flash('Apelido e E-mail são obrigatórios.', 'danger')
         return redirect(url_for('main.lobbies_list'))
 
-    # Se a Proxy foi alterada, valida a nova proxy
     if proxy_id and proxy_id != lobby.proxy_id:
         novo_proxy = Proxy.query.filter_by(id=proxy_id, user_id=current_user.id, status='ATIVO').first()
         if not novo_proxy:
@@ -209,6 +222,8 @@ def edit_lobby(lobby_id):
             flash('A nova Proxy selecionada já está em uso por outro lobby.', 'danger')
             return redirect(url_for('main.lobbies_list'))
 
+        # Se alterou o proxy de um lobby que rodava, encerra a instância antiga
+        BotManager.stop_lobby(lobby.id)
         lobby.proxy_id = novo_proxy.id
 
     lobby.nickname = nickname
@@ -218,6 +233,12 @@ def edit_lobby(lobby_id):
         lobby.set_password(password)
 
     db.session.commit()
+
+    # Se o lobby estiver ativo, reinicia a instância com as novas configurações
+    if lobby.status == 'ATIVO':
+        app = current_app._get_current_object()
+        BotManager.start_lobby(lobby.id, app)
+
     flash(f'Lobby "{lobby.nickname}" atualizado com sucesso!', 'success')
     return redirect(url_for('main.lobbies_list'))
 
@@ -226,7 +247,7 @@ def edit_lobby(lobby_id):
 @login_required
 @user_active_required
 def delete_lobby(lobby_id):
-    """Exclusão de um lobby pertencente ao usuário."""
+    """Exclusão de um lobby pertencente ao usuário com encerramento de automação se ativo."""
     lobby = Lobby.query.filter_by(id=lobby_id, user_id=current_user.id).first_or_404()
 
     if hasattr(lobby, 'contas') and len(lobby.contas) > 0:
@@ -238,6 +259,9 @@ def delete_lobby(lobby_id):
 
     try:
         nickname = lobby.nickname
+        # Fecha a janela do Playwright se estivesse rodando
+        BotManager.stop_lobby(lobby.id)
+
         db.session.delete(lobby)
         db.session.commit()
         flash(f'Lobby "{nickname}" removido com sucesso!', 'success')
@@ -252,20 +276,77 @@ def delete_lobby(lobby_id):
 @login_required
 @user_active_required
 def toggle_lobby_status(lobby_id):
-    """Alterna o status do lobby entre ATIVO e INATIVO."""
+    """Alterna o status do lobby (ATIVO/INATIVO/ERRO) e liga/desliga o navegador imediatamente."""
     lobby = Lobby.query.filter_by(id=lobby_id, user_id=current_user.id).first_or_404()
 
-    if lobby.status == 'ATIVO':
+    if lobby.status in ['ATIVO', 'ERRO']:
         lobby.status = 'INATIVO'
-        flash(f'Lobby "{lobby.nickname}" alterado para INATIVO.', 'warning')
+        # Fecha exclusivamente o navegador deste lobby
+        BotManager.stop_lobby(lobby.id)
+        flash(f'Lobby "{lobby.nickname}" inativado e navegador encerrado com sucesso.', 'warning')
     else:
-        # Trava: Não permite ativar se o proxy vinculado estiver inativo ou não existir
         if not lobby.proxy or lobby.proxy.status != 'ATIVO':
             flash(f'Não é possível ativar o lobby "{lobby.nickname}" pois a Proxy vinculada está inativa.', 'danger')
             return redirect(url_for('main.lobbies_list'))
 
         lobby.status = 'ATIVO'
-        flash(f'Lobby "{lobby.nickname}" alterado para ATIVO.', 'success')
+        # Abre o navegador imediatamente ao ativar
+        app = current_app._get_current_object()
+        BotManager.start_lobby(lobby.id, app)
+        flash(f'Lobby "{lobby.nickname}" ativado e automação iniciada!', 'success')
 
     db.session.commit()
+    return redirect(url_for('main.lobbies_list'))
+
+
+# ==========================================
+# ROTAS DO DISJUNTOR GERAL (AUTOMAÇÃO EM LOTE)
+# ==========================================
+
+@main_bp.route('/bot/iniciar', methods=['POST'])
+@login_required
+@user_active_required
+def start_bot():
+    """Disjuntor Geral: Ligar Todos os Lobbies ATIVOS do usuário."""
+    app = current_app._get_current_object()
+
+    lobbies = Lobby.query.filter_by(user_id=current_user.id, status='ATIVO').all()
+    lobbies_para_rodar = [l for l in lobbies if l.proxy and l.proxy.status == 'ATIVO']
+
+    if not lobbies_para_rodar:
+        flash('Nenhum lobby ativo com conexão proxy disponível para iniciar.', 'warning')
+        return redirect(url_for('main.lobbies_list'))
+
+    iniciados = 0
+    for lobby in lobbies_para_rodar:
+        if not BotManager.is_running(lobby.id):
+            BotManager.start_lobby(lobby.id, app)
+            iniciados += 1
+
+    if iniciados > 0:
+        flash(f'{iniciados} navegador(es) iniciado(s) com sucesso.', 'success')
+    else:
+        flash('Todos os lobbies ativos já possuem navegadores em execução.', 'info')
+
+    return redirect(url_for('main.lobbies_list'))
+
+
+@main_bp.route('/bot/parar-todos', methods=['POST'])
+@login_required
+@user_active_required
+def stop_all_bots():
+    """Disjuntor Geral: Desligar Todos os navegadores em execução do usuário."""
+    lobbies = Lobby.query.filter_by(user_id=current_user.id).all()
+
+    encerrados = 0
+    for lobby in lobbies:
+        if BotManager.is_running(lobby.id):
+            BotManager.stop_lobby(lobby.id)
+            encerrados += 1
+
+    if encerrados > 0:
+        flash(f'{encerrados} navegador(es) encerrado(s) com sucesso.', 'success')
+    else:
+        flash('Nenhum navegador estava em execução no momento.', 'info')
+
     return redirect(url_for('main.lobbies_list'))

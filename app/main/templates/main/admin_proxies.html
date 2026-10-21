@@ -165,7 +165,7 @@
                         <td class="pe-4 py-3 text-end">
                             {% if proxy.assigned_user %}
                                 <!-- Botão para Remover Atribuição -->
-                                <form action="{{ url_for('main.assign_proxy', proxy_id=proxy.id) }}" method="POST" class="d-inline">
+                                <form action="{{ url_for('main.unassign_proxy', proxy_id=proxy.id) }}" method="POST" class="d-inline">
                                     <button type="submit" class="btn btn-sm btn-outline-danger rounded-3" title="Retirar proxy deste usuário">
                                         <i class="bi bi-person-x-fill me-1"></i> Desvincular
                                     </button>
@@ -225,7 +225,7 @@
 
                     <div class="border-top pt-2 mt-2 text-end">
                         {% if proxy.assigned_user %}
-                            <form action="{{ url_for('main.assign_proxy', proxy_id=proxy.id) }}" method="POST">
+                            <form action="{{ url_for('main.unassign_proxy', proxy_id=proxy.id) }}" method="POST">
                                 <button type="submit" class="btn btn-sm btn-outline-danger w-100 rounded-3">
                                     <i class="bi bi-person-x-fill me-1"></i> Desvincular Usuário
                                 </button>

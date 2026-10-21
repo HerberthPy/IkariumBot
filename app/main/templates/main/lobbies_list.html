@@ -22,7 +22,7 @@
 </nav>
 
 <main class="container pb-5">
-    <!-- Cabeçalho da Página + Botão de Novo Cadastro -->
+    <!-- Cabeçalho da Página + Botões de Ação (Disjuntor Geral) -->
     <div class="d-flex flex-column flex-md-row justify-content-between align-items-md-center mb-4 gap-3">
         <div>
             <h2 class="h3 fw-bold text-dark mb-1">
@@ -31,7 +31,24 @@
             <p class="text-secondary small mb-0">Gerencie e visualize todos os seus lobbies de automação</p>
         </div>
 
-        <div>
+        <div class="d-flex align-items-center gap-2">
+            {% if lobbies %}
+                <!-- DISJUNTOR GERAL: LIGAR TODOS -->
+                <form action="{{ url_for('main.start_bot') }}" method="POST" class="d-inline">
+                    <button type="submit" class="btn btn-success rounded-3 shadow-sm py-2 px-3 fw-semibold" title="Iniciar navegadores de todos os lobbies ativos">
+                        <i class="bi bi-play-fill me-1"></i> Ligar Todos
+                    </button>
+                </form>
+
+                <!-- DISJUNTOR GERAL: DESLIGAR TODOS -->
+                <form action="{{ url_for('main.stop_all_bots') }}" method="POST" class="d-inline">
+                    <button type="submit" class="btn btn-outline-danger rounded-3 shadow-sm py-2 px-3 fw-semibold" title="Encerrar todas as janelas ativas imediatamente">
+                        <i class="bi bi-stop-fill me-1"></i> Desligar Todos
+                    </button>
+                </form>
+            {% endif %}
+
+            <!-- BOTÃO CADASTRAR NOVO LOBBY -->
             {% if current_user.can_create_lobby %}
                 <a href="{{ url_for('main.create_lobby') }}" class="btn btn-primary rounded-3 shadow-sm py-2 px-3 fw-semibold">
                     <i class="bi bi-plus-lg me-1"></i> Cadastrar Novo Lobby
@@ -90,6 +107,11 @@
                         <!-- Apelido -->
                         <td class="ps-4 py-3 fw-semibold text-dark">
                             <i class="bi bi-controller text-primary me-2"></i>{{ lobby.nickname }}
+                            {% if lobby.is_running %}
+                                <span class="badge bg-info-subtle text-info border border-info-subtle rounded-pill ms-1" style="font-size: 0.7rem;" title="Navegador em execução">
+                                    <i class="bi bi-window-stack me-1"></i>Rodando
+                                </span>
+                            {% endif %}
                         </td>
 
                         <!-- E-mail -->
@@ -145,13 +167,17 @@
                         <!-- Status -->
                         <td class="py-3">
                             {% if lobby.status == "ATIVO" %}
-                            <span class="badge bg-success-subtle text-success rounded-pill px-3 py-2 fw-semibold small">
-                                <i class="bi bi-check-circle-fill me-1"></i> ATIVO
-                            </span>
+                                <span class="badge bg-success-subtle text-success rounded-pill px-3 py-2 fw-semibold small">
+                                    <i class="bi bi-check-circle-fill me-1"></i> ATIVO
+                                </span>
+                            {% elif lobby.status == "ERRO" %}
+                                <span class="badge bg-warning-subtle text-warning border border-warning-subtle rounded-pill px-3 py-2 fw-semibold small" title="Falha ao conectar via Proxy/Navegador">
+                                    <i class="bi bi-exclamation-triangle-fill me-1"></i> ERRO
+                                </span>
                             {% else %}
-                            <span class="badge bg-danger-subtle text-danger rounded-pill px-3 py-2 fw-semibold small">
-                                <i class="bi bi-x-circle-fill me-1"></i> INATIVO
-                            </span>
+                                <span class="badge bg-danger-subtle text-danger rounded-pill px-3 py-2 fw-semibold small">
+                                    <i class="bi bi-x-circle-fill me-1"></i> INATIVO
+                                </span>
                             {% endif %}
                         </td>
 
@@ -159,9 +185,9 @@
                         <td class="pe-4 py-3 text-end">
                             <form action="{{ url_for('main.toggle_lobby_status', lobby_id=lobby.id) }}" method="POST" class="d-inline">
                                 <button type="submit"
-                                        class="btn btn-sm {{ 'btn-outline-danger' if lobby.status == 'ATIVO' else 'btn-outline-success' }} rounded-circle me-1"
-                                        title="{{ 'Inativar Lobby' if lobby.status == 'ATIVO' else 'Ativar Lobby' }}">
-                                    <i class="bi {{ 'bi-stop-circle-fill' if lobby.status == 'ATIVO' else 'bi-play-circle-fill' }}"></i>
+                                        class="btn btn-sm {{ 'btn-outline-danger' if lobby.status in ['ATIVO', 'ERRO'] else 'btn-outline-success' }} rounded-circle me-1"
+                                        title="{{ 'Inativar Lobby (Encerrar Navegador)' if lobby.status in ['ATIVO', 'ERRO'] else 'Ativar Lobby' }}">
+                                    <i class="bi {{ 'bi-stop-circle-fill' if lobby.status in ['ATIVO', 'ERRO'] else 'bi-play-circle-fill' }}"></i>
                                 </button>
                             </form>
 
@@ -200,16 +226,25 @@
                     <div class="d-flex justify-content-between align-items-center mb-2">
                         <h6 class="fw-bold mb-0 text-primary">
                             <i class="bi bi-controller me-1"></i> {{ lobby.nickname }}
+                            {% if lobby.is_running %}
+                                <span class="badge bg-info-subtle text-info border border-info-subtle rounded-pill" style="font-size: 0.65rem;">
+                                    <i class="bi bi-window-stack me-1"></i>Rodando
+                                </span>
+                            {% endif %}
                         </h6>
 
                         {% if lobby.status == "ATIVO" %}
-                        <span class="badge bg-success-subtle text-success border border-success-subtle rounded-pill">
-                            <i class="bi bi-check-circle-fill me-1"></i>ATIVO
-                        </span>
+                            <span class="badge bg-success-subtle text-success border border-success-subtle rounded-pill">
+                                <i class="bi bi-check-circle-fill me-1"></i>ATIVO
+                            </span>
+                        {% elif lobby.status == "ERRO" %}
+                            <span class="badge bg-warning-subtle text-warning border border-warning-subtle rounded-pill">
+                                <i class="bi bi-exclamation-triangle-fill me-1"></i>ERRO
+                            </span>
                         {% else %}
-                        <span class="badge bg-danger-subtle text-danger border border-danger-subtle rounded-pill">
-                            <i class="bi bi-x-circle-fill me-1"></i>INATIVO
-                        </span>
+                            <span class="badge bg-danger-subtle text-danger border border-danger-subtle rounded-pill">
+                                <i class="bi bi-x-circle-fill me-1"></i>INATIVO
+                            </span>
                         {% endif %}
                     </div>
 
@@ -262,9 +297,9 @@
 
                 <div class="d-flex gap-2 justify-content-end border-top pt-2 mt-2 px-3 pb-2">
                     <form action="{{ url_for('main.toggle_lobby_status', lobby_id=lobby.id) }}" method="POST" class="d-inline">
-                        <button type="submit" class="btn btn-sm {{ 'btn-outline-danger' if lobby.status == 'ATIVO' else 'btn-outline-success' }}">
-                            <i class="bi {{ 'bi-stop-circle-fill' if lobby.status == 'ATIVO' else 'bi-play-circle-fill' }} me-1"></i>
-                            {{ 'Inativar' if lobby.status == 'ATIVO' else 'Ativar' }}
+                        <button type="submit" class="btn btn-sm {{ 'btn-outline-danger' if lobby.status in ['ATIVO', 'ERRO'] else 'btn-outline-success' }}">
+                            <i class="bi {{ 'bi-stop-circle-fill' if lobby.status in ['ATIVO', 'ERRO'] else 'bi-play-circle-fill' }} me-1"></i>
+                            {{ 'Inativar' if lobby.status in ['ATIVO', 'ERRO'] else 'Ativar' }}
                         </button>
                     </form>
 
@@ -341,7 +376,7 @@
         </div>
         {% endfor %}
 
-        <!-- MODAL DE EDIÇÃO DO LOBBY (Seleção amigável de Proxy sem expor IP) -->
+        <!-- MODAL DE EDIÇÃO DO LOBBY -->
         {% for lobby in lobbies %}
         <div class="modal fade" id="modalEditLobby-{{ lobby.id }}" tabindex="-1" aria-hidden="true">
             <div class="modal-dialog modal-dialog-centered">
@@ -373,7 +408,7 @@
                                 <input type="password" class="form-control" id="password-{{ lobby.id }}" name="password" placeholder="••••••••">
                             </div>
 
-                            <!-- Seleção de Proxy (Sem expor IP/Porta ao usuário) -->
+                            <!-- Seleção de Proxy -->
                             <div class="mb-3">
                                 <label for="proxy_id-{{ lobby.id }}" class="form-label small fw-semibold text-secondary">Conexão Designada</label>
                                 <select class="form-select" id="proxy_id-{{ lobby.id }}" name="proxy_id" required>

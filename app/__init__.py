@@ -9,32 +9,46 @@ login_manager = LoginManager()
 scheduler = APScheduler()
 
 
+def restore_active_bots(app):
+    """Verifica e restaura as instâncias do Playwright para os Lobbies
+
+    que estavam marcados como ATIVOS antes do servidor cair/reiniciar.
+    """
+    with app.app_context():
+        from app.models import Lobby
+        from app.bot.runner import BotManager
+
+        # Busca todos os lobbies que estavam salvos como ATIVO no banco
+        lobbies_ativos = Lobby.query.filter_by(status='ATIVO').all()
+
+        if lobbies_ativos:
+            print(f"[Automação Auto-Start] Restaurando {len(lobbies_ativos)} lobby(ies) ativo(s)...")
+            for lobby in lobbies_ativos:
+                if lobby.proxy and lobby.proxy.status == 'ATIVO':
+                    if not BotManager.is_running(lobby.id):
+                        BotManager.start_lobby(lobby.id, app)
+
+
 def create_app(config_class=Config):
-    # Cria a instância principal do Flask
     app = Flask(__name__)
     app.config.from_object(config_class)
 
-    # 1. Inicializando extensões na app
     db.init_app(app)
     login_manager.init_app(app)
 
-    # Configuração do Agendador APScheduler
     scheduler.init_app(app)
     scheduler.start()
 
-    # Define para onde redirecionar utilizadores não autenticados
     login_manager.login_view = 'auth.login'
     login_manager.login_message = ''
     login_manager.login_message_category = 'warning'
 
-    # 2. Carregador de utilizador obrigatório para o Flask-Login
     from app.models import User
 
     @login_manager.user_loader
     def load_user(user_id):
         return User.query.get(int(user_id))
 
-    # Registro dos Blueprints (módulos de rotas)
     from app.auth.routes import auth_bp
     from app.main.routes import main_bp
 
@@ -45,19 +59,21 @@ def create_app(config_class=Config):
         from app.models import User, Proxy, Lobby
         db.create_all()
 
-        # Registro do Job de Sincronização Automática (A cada 30 minutos = 1800 segundos)
+        # Job do APScheduler (a cada 30 min)
         from app.main.tasks import sync_webshare_job
         if not scheduler.get_job('job_sync_proxies'):
             scheduler.add_job(
                 id='job_sync_proxies',
                 func=sync_webshare_job,
                 trigger='interval',
-                seconds=1800,  # 30 minutos
+                seconds=1800,
                 args=[app],
                 replace_existing=True
             )
 
-    # Registra handlers de erro globais
+        # RESTAURAÇÃO AUTOMÁTICA DAS AUTOMAÇÕES AO INICIAR O SERVIDOR
+        restore_active_bots(app)
+
     @app.errorhandler(404)
     def page_not_found(e):
         return render_template('main/404.html'), 404
