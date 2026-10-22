@@ -24,4 +24,4 @@ instance/
 node_modules/
 
 # Sessões
-sessions/..
+/sessions/
