@@ -22,3 +22,6 @@ instance/
 
 # Módulos do Node.JS
 node_modules/
+
+# Sessões
+sessions/..
