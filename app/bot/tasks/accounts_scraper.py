@@ -68,7 +68,7 @@ class AccountsScraperTask:
                             nome_usuario=nome_user,
                             email=lobby_db.email,
                             ativo=acc.get("ativo", True),
-                            automacao_ativa=True,
+                            automacao_ativa=False,
                             ultimo_login=agora_brasilia
                         )
                         db.session.add(nova_conta)
