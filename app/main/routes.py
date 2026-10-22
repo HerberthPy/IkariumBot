@@ -1,3 +1,6 @@
+# app/main/routes.py
+import os
+import json
 from flask import render_template, request, redirect, url_for, flash, current_app, jsonify
 from flask_login import login_required, current_user
 from app import db
@@ -6,6 +9,7 @@ from app.main import main_bp
 from app.main.tasks import sync_webshare_job
 from app.main.decorators import admin_required, user_active_required
 from app.bot import BotManager
+from app.bot.auth import AuthManager
 
 
 @main_bp.route('/')
@@ -179,18 +183,15 @@ def create_lobby():
             email=email,
             proxy_id=proxy.id,
             user_id=current_user.id,
-            status='INATIVO'
+            status='INATIVO',
+            has_session=False
         )
         novo_lobby.set_password(password)
 
         db.session.add(novo_lobby)
         db.session.commit()
 
-        # Inicia a navegação imediatamente para o lobby recém-criado
-        # app = current_app._get_current_object()
-        # BotManager.start_lobby(novo_lobby.id, app)
-
-        flash("Lobby cadastrado!", "success")
+        flash("Lobby cadastrado com sucesso! Agora realize a autenticação inicial para vincular a sessão.", "success")
         return redirect(url_for('main.lobbies_list'))
 
     return render_template('main/create_lobby.html', user_proxies=proxies_livres)
@@ -247,27 +248,31 @@ def edit_lobby(lobby_id):
 @login_required
 @user_active_required
 def delete_lobby(lobby_id):
-    """Exclusão de um lobby pertencente ao usuário com encerramento de automação se ativo."""
+    """Exclusão de um lobby pertencente ao usuário, deletando contas associadas e arquivo de sessão."""
     lobby = Lobby.query.filter_by(id=lobby_id, user_id=current_user.id).first_or_404()
-
-    if hasattr(lobby, 'contas') and len(lobby.contas) > 0:
-        flash(
-            f'Não é possível excluir o lobby "{lobby.nickname}" pois ele possui {len(lobby.contas)} servidor(es) vinculado(s).',
-            'danger'
-        )
-        return redirect(url_for('main.lobbies_list'))
 
     try:
         nickname = lobby.nickname
-        # Fecha a janela do Playwright se estivesse rodando
+
+        # 1. Encerra a automação do Playwright se estiver rodando
         BotManager.stop_lobby(lobby.id)
 
+        # 2. Remove o arquivo JSON de sessão do disco, se existir
+        session_file = lobby.get_session_path()
+        if os.path.exists(session_file):
+            try:
+                os.remove(session_file)
+            except Exception as file_err:
+                print(f"[Delete Lobby] Erro ao remover ficheiro de sessão: {file_err}")
+
+        # 3. Exclui o lobby do banco de dados (o SQLAlchemy apaga as contas vinculadas em cascata)
         db.session.delete(lobby)
         db.session.commit()
-        flash(f'Lobby "{nickname}" removido com sucesso!', 'success')
-    except Exception:
+
+        flash(f'Lobby "{nickname}" e todos os seus servidores vinculados foram excluídos com sucesso!', 'success')
+    except Exception as e:
         db.session.rollback()
-        flash('Ocorreu um erro ao tentar excluir o lobby.', 'danger')
+        flash(f'Ocorreu um erro ao tentar excluir o lobby: {str(e)}', 'danger')
 
     return redirect(url_for('main.lobbies_list'))
 
@@ -289,6 +294,10 @@ def toggle_lobby_status(lobby_id):
             flash(f'Não é possível ativar o lobby "{lobby.nickname}" pois a Proxy vinculada está inativa.', 'danger')
             return redirect(url_for('main.lobbies_list'))
 
+        if not lobby.is_session_valid:
+            flash(f'O lobby "{lobby.nickname}" não possui uma sessão salva. Por favor, autentique-o primeiro.', 'danger')
+            return redirect(url_for('main.lobbies_list'))
+
         lobby.status = 'ATIVO'
         # Abre o navegador imediatamente ao ativar
         app = current_app._get_current_object()
@@ -297,6 +306,87 @@ def toggle_lobby_status(lobby_id):
 
     db.session.commit()
     return redirect(url_for('main.lobbies_list'))
+
+
+# ==========================================
+# ROTAS DE AUTENTICAÇÃO INTERATIVA DE SESSÃO (SEM PROXY E PREENCHIDO)
+# ==========================================
+
+@main_bp.route('/lobbies/<int:lobby_id>/autenticar-interativo', methods=['POST'])
+@login_required
+@user_active_required
+def authenticate_lobby_interactive(lobby_id):
+    """Abre uma janela Playwright visível (sem proxy) direcionada ao login com e-mail e senha preenchidos."""
+    lobby = Lobby.query.filter_by(id=lobby_id, user_id=current_user.id).first_or_404()
+
+    try:
+        from playwright.sync_api import sync_playwright
+
+        session_file = lobby.get_session_path()
+        lobby_password = lobby.get_password()
+
+        with sync_playwright() as p:
+            # Abre o navegador com interface gráfica visível e sem proxy
+            browser = p.chromium.launch(headless=False)
+            context = browser.new_context()  # Conexão direta/local
+            page = context.new_page()
+
+            # Navega diretamente para a aba de login
+            page.goto("https://lobby.ikariam.gameforge.com/pt_BR/login", timeout=60000, wait_until="domcontentloaded")
+
+            # Garante que está na aba 'Entrar' (Login) caso o portal abra na aba 'Cadastrar'
+            try:
+                # Clica na aba de Login se ela estiver visível
+                tab_login = page.locator("ul.tabs-header li:has-text('Entrar'), ul.tabs-header li:has-text('Log in')").first
+                if tab_login.is_visible(timeout=3000):
+                    tab_login.click()
+            except Exception:
+                pass
+
+            # Preenche o E-mail e a Senha com seletores abrangentes do portal Gameforge
+            try:
+                # Aguarda o campo de e-mail estar visível
+                email_input = page.locator("input[type='email'], input[name='email'], input[name='login']").first
+                email_input.wait_for(state="visible", timeout=10000)
+                email_input.fill(lobby.email)
+
+                # Preenche a Senha
+                pwd_input = page.locator("input[type='password'], input[name='password']").first
+                pwd_input.wait_for(state="visible", timeout=5000)
+                if lobby_password:
+                    pwd_input.fill(lobby_password)
+
+                print(f"[Auth Direct] Credenciais preenchidas para {lobby.email}.")
+            except Exception as fill_err:
+                print(f"[Auth Direct] Aviso ao preencher formulário: {fill_err}")
+
+            print(f"[Auth Direct] Aguardando o usuário resolver o CAPTCHA/clicar em Entrar no Lobby #{lobby.id}...")
+
+            # Aguarda o usuário concluir o login/CAPTCHA e ser redirecionado para a área logada (/hub ou /accounts)
+            page.wait_for_url(lambda url: "/hub" in url or "/accounts" in url, timeout=180000)
+            page.wait_for_timeout(3000)
+
+            # Extrai cookies e localStorage da sessão autenticada
+            cookies = context.cookies()
+            local_storage = page.evaluate("() => JSON.stringify(localStorage)")
+
+            # Garante a existência do diretório de sessões
+            os.makedirs(os.path.dirname(session_file), exist_ok=True)
+
+            # Salva o arquivo de sessão
+            with open(session_file, "w", encoding="utf-8") as f:
+                json.dump({"cookies": cookies, "local_storage": local_storage}, f, indent=4)
+
+            browser.close()
+
+        lobby.has_session = True
+        db.session.commit()
+
+        return jsonify({'success': True, 'message': 'Autenticação realizada e sessão capturada com sucesso!'})
+
+    except Exception as e:
+        db.session.rollback()
+        return jsonify({'success': False, 'message': f'Falha na autenticação: {str(e)}'}), 500
 
 
 # ==========================================
@@ -311,10 +401,10 @@ def start_bot():
     app = current_app._get_current_object()
 
     lobbies = Lobby.query.filter_by(user_id=current_user.id, status='ATIVO').all()
-    lobbies_para_rodar = [l for l in lobbies if l.proxy and l.proxy.status == 'ATIVO']
+    lobbies_para_rodar = [l for l in lobbies if l.proxy and l.proxy.status == 'ATIVO' and l.is_session_valid]
 
     if not lobbies_para_rodar:
-        flash('Nenhum lobby ativo com conexão proxy disponível para iniciar.', 'warning')
+        flash('Nenhum lobby ativo com conexão proxy e sessão válida disponível para iniciar.', 'warning')
         return redirect(url_for('main.lobbies_list'))
 
     iniciados = 0
@@ -356,14 +446,37 @@ def stop_all_bots():
 @login_required
 @user_active_required
 def get_lobbies_status():
-    """Retorna o status atualizado em JSON de todos os lobbies do usuário."""
+    """Retorna o status e a lista detalhada de contas/mundos em JSON."""
     lobbies = Lobby.query.filter_by(user_id=current_user.id).all()
 
     status_data = {}
     for lobby in lobbies:
+        contas_list = []
+        if lobby.contas:
+            for conta in lobby.contas:
+                # Aplica a tradução do nome do mundo caso tenha o utilitário
+                nome_mundo = conta.servidor
+                try:
+                    from app.bot.utils.worlds import WORLD_NAMES
+                    nome_mundo = WORLD_NAMES.get(conta.servidor, conta.servidor)
+                except ImportError:
+                    pass
+
+                contas_list.append({
+                    'id': conta.id,
+                    'servidor': conta.servidor,
+                    'nome_mundo': nome_mundo,
+                    'pais': conta.pais.upper() if conta.pais else '',
+                    'nome_usuario': conta.nome_usuario,
+                    'ativo': conta.ativo
+                })
+
         status_data[lobby.id] = {
             'status': lobby.status,
-            'is_running': BotManager.is_running(lobby.id)
+            'has_session': lobby.is_session_valid,
+            'is_running': BotManager.is_running(lobby.id),
+            'accounts_count': len(contas_list),
+            'accounts': contas_list  # <--- Lista de contas enviada no JSON
         }
 
     return jsonify(status_data)

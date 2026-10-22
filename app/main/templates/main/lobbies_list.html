@@ -158,9 +158,9 @@
                             {{ lobby.country }}
                         </td>
 
-                        <!-- Servidores do lobby -->
+                        <!-- Servidores do lobby (Desktop ID) -->
                         <td class="py-3">
-                            <span class="badge bg-light text-dark border fw-semibold">
+                            <span class="badge bg-light text-dark border fw-semibold" id="lobby-servers-count-{{ lobby.id }}">
                                 {{ lobby.contas|length if lobby.contas else 0 }} Servidor(es)
                             </span>
                         </td>
@@ -184,6 +184,14 @@
 
                         <!-- Ações -->
                         <td class="pe-4 py-3 text-end">
+                            <!-- BOTÃO DE AUTENTICAÇÃO MANUAL -->
+                            <button class="btn btn-sm {{ 'btn-success' if lobby.is_session_valid else 'btn-outline-warning' }} rounded-circle me-1"
+                                    data-bs-toggle="modal"
+                                    data-bs-target="#modalAuthLobby-{{ lobby.id }}"
+                                    title="{{ 'Sessão Ativa (Clique para reautenticar)' if lobby.is_session_valid else 'Autenticar Conta (Fazer Login Manual)' }}">
+                                <i class="bi bi-key-fill"></i>
+                            </button>
+
                             <form action="{{ url_for('main.toggle_lobby_status', lobby_id=lobby.id) }}" method="POST" class="d-inline">
                                 <button type="submit"
                                         id="btn-toggle-{{ lobby.id }}"
@@ -290,15 +298,23 @@
                         </div>
                     </div>
 
+                    <!-- Servidores do lobby (Mobile ID) -->
                     <div class="d-flex align-items-center">
                         <strong class="me-2" style="min-width: 85px;">SERVIDORES:</strong>
                         <span class="badge bg-white text-dark border">
-                            <i class="bi bi-cpu me-1 text-muted"></i>{{ lobby.contas|length if lobby.contas else 0 }}
+                            <i class="bi bi-cpu me-1 text-muted"></i>
+                            <span id="lobby-servers-count-mobile-{{ lobby.id }}">{{ lobby.contas|length if lobby.contas else 0 }}</span>
                         </span>
                     </div>
                 </div>
 
                 <div class="d-flex gap-2 justify-content-end border-top pt-2 mt-2 px-3 pb-2">
+                    <button class="btn btn-sm {{ 'btn-success' if lobby.is_session_valid else 'btn-outline-warning' }}"
+                            data-bs-toggle="modal"
+                            data-bs-target="#modalAuthLobby-{{ lobby.id }}">
+                        <i class="bi bi-key-fill me-1"></i> {{ 'Autenticado' if lobby.is_session_valid else 'Autenticar' }}
+                    </button>
+
                     <form action="{{ url_for('main.toggle_lobby_status', lobby_id=lobby.id) }}" method="POST" class="d-inline">
                         <button type="submit" class="btn btn-sm {{ 'btn-outline-danger' if lobby.status in ['ATIVO', 'ERRO'] else 'btn-outline-success' }}">
                             <i class="bi {{ 'bi-stop-circle-fill' if lobby.status in ['ATIVO', 'ERRO'] else 'bi-play-circle-fill' }} me-1"></i>
@@ -328,7 +344,47 @@
             {% endfor %}
         </div>
 
-        <!-- MODAL DE SERVIDORES DO LOBBY -->
+        <!-- MODAL DE AUTENTICAÇÃO MANUAL (PLAYWRIGHT INTERATIVO) -->
+        {% for lobby in lobbies %}
+        <div class="modal fade" id="modalAuthLobby-{{ lobby.id }}" tabindex="-1" aria-hidden="true">
+            <div class="modal-dialog modal-dialog-centered">
+                <div class="modal-content border-0 shadow-lg rounded-4 overflow-hidden">
+                    <div class="modal-header bg-light border-bottom py-3 px-4">
+                        <div class="d-flex align-items-center gap-2">
+                            <div class="bg-warning text-dark d-inline-flex align-items-center justify-content-center rounded-circle" style="width: 32px; height: 32px;">
+                                <i class="bi bi-shield-lock-fill fs-6"></i>
+                            </div>
+                            <h5 class="modal-title fw-bold text-dark mb-0">Autenticação Manual — {{ lobby.nickname }}</h5>
+                        </div>
+                        <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Fechar"></button>
+                    </div>
+
+                    <div class="modal-body p-4 text-center">
+                        <p class="text-secondary small mb-3">
+                            Clique no botão abaixo para abrir a janela do navegador. Realize o login com o e-mail <strong>{{ lobby.email }}</strong> e resolva o CAPTCHA diretamente na janela aberta.
+                        </p>
+
+                        <button type="button" class="btn btn-primary rounded-3 px-4 py-2 fw-semibold mb-3" onclick="abrirJanelaLogin({{ lobby.id }})">
+                            <i class="bi bi-box-arrow-up-right me-2"></i> Abrir Tela de Login do Ikariam
+                        </button>
+
+                        <div id="status-auth-{{ lobby.id }}" class="alert alert-info border-0 rounded-3 small d-none mb-0">
+                            Aguardando conclusão do login no navegador...
+                        </div>
+                    </div>
+
+                    <div class="modal-footer bg-light border-top py-2 px-4 d-flex justify-content-between align-items-center">
+                        <span class="small text-muted">
+                            Status: <strong>{{ 'Sessão Válida' if lobby.is_session_valid else 'Pendente de Autenticação' }}</strong>
+                        </span>
+                        <button type="button" class="btn btn-sm btn-secondary rounded-3 px-3" data-bs-dismiss="modal">Fechar</button>
+                    </div>
+                </div>
+            </div>
+        </div>
+        {% endfor %}
+
+        <!-- MODAL DE SERVIDORES DO LOBBY (COM ATUALIZAÇÃO EM TEMPO REAL) -->
         {% for lobby in lobbies %}
         <div class="modal fade" id="modalAccLobby-{{ lobby.id }}" tabindex="-1" aria-hidden="true">
             <div class="modal-dialog modal-dialog-centered modal-xl">
@@ -343,7 +399,8 @@
                         <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Fechar"></button>
                     </div>
 
-                    <div class="modal-body p-4">
+                    <!-- Corpo do Modal identificado dinamicamente -->
+                    <div class="modal-body p-4" id="lobby-modal-body-{{ lobby.id }}">
                         {% if lobby.contas %}
                         <div class="table-responsive rounded-3 border">
                             <table class="table table-hover align-middle mb-0 w-100">
@@ -359,7 +416,7 @@
                                 <tbody>
                                 {% for conta in lobby.contas %}
                                 <tr>
-                                    <!-- Mundo (Traduzido pelo filtro customizado) -->
+                                    <!-- Mundo -->
                                     <td class="ps-4 py-3 fw-bold text-dark">
                                         <i class="bi bi-hdd-network text-primary me-2"></i>{{ conta.servidor|nome_mundo }}
                                     </td>
@@ -411,7 +468,7 @@
 
                     <div class="modal-footer bg-light border-top py-2 px-4 d-flex justify-content-between align-items-center">
                         <span class="small text-muted">
-                            Total: <strong>{{ lobby.contas|length if lobby.contas else 0 }}</strong> conta(s) sincronizada(s)
+                            Total: <strong id="lobby-modal-total-{{ lobby.id }}">{{ lobby.contas|length if lobby.contas else 0 }}</strong> conta(s) sincronizada(s)
                         </span>
                         <button type="button" class="btn btn-sm btn-secondary rounded-3 px-3" data-bs-dismiss="modal">Fechar</button>
                     </div>
@@ -544,6 +601,104 @@
     }
   }
 
+  function abrirJanelaLogin(lobbyId) {
+    const statusDiv = document.getElementById(`status-auth-${lobbyId}`);
+    if (statusDiv) {
+      statusDiv.classList.remove('d-none');
+      statusDiv.className = "alert alert-info border-0 rounded-3 small";
+      statusDiv.innerHTML = '<i class="bi bi-hourglass-split me-1"></i> Navegador aberto. Faça o login e resolva o CAPTCHA...';
+    }
+
+    fetch(`/lobbies/${lobbyId}/autenticar-interativo`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' }
+    })
+    .then(res => res.json())
+    .then(data => {
+      if (data.success) {
+        if (statusDiv) {
+          statusDiv.className = "alert alert-success border-0 rounded-3 small";
+          statusDiv.innerHTML = '<i class="bi bi-check-circle-fill me-1"></i> ' + data.message;
+        }
+        setTimeout(() => window.location.reload(), 1200);
+      } else {
+        if (statusDiv) {
+          statusDiv.className = "alert alert-danger border-0 rounded-3 small";
+          statusDiv.innerHTML = '<i class="bi bi-exclamation-triangle-fill me-1"></i> ' + data.message;
+        }
+      }
+    })
+    .catch(err => {
+      if (statusDiv) {
+        statusDiv.className = "alert alert-danger border-0 rounded-3 small";
+        statusDiv.innerHTML = '<i class="bi bi-exclamation-triangle-fill me-1"></i> Erro ao comunicar com o servidor de autenticação.';
+      }
+    });
+  }
+
+  // ==========================================
+  // FUNÇÃO DE RENDERIZAÇÃO DAS CONTAS NO MODAL
+  // ==========================================
+  function renderModalAccounts(modalContainer, accounts) {
+    if (!accounts || accounts.length === 0) {
+      modalContainer.innerHTML = `
+        <div class="text-center py-5">
+            <i class="bi bi-search fs-1 text-muted opacity-50 mb-2 d-block"></i>
+            <h6 class="fw-bold text-dark mb-1">Nenhuma conta detectada</h6>
+            <p class="text-secondary small mb-0">Ligue a automação deste lobby para capturar e sincronizar os mundos automaticamente.</p>
+        </div>`;
+      return;
+    }
+
+    let rowsHtml = '';
+    accounts.forEach(acc => {
+      const statusBadge = acc.ativo
+        ? `<span class="badge bg-success-subtle text-success border border-success-subtle rounded-pill px-3 py-1 fw-semibold"><i class="bi bi-check-circle-fill me-1"></i>Ativa</span>`
+        : `<span class="badge bg-danger-subtle text-danger border border-danger-subtle rounded-pill px-3 py-1 fw-semibold"><i class="bi bi-x-circle-fill me-1"></i>Bloqueada</span>`;
+
+      rowsHtml += `
+        <tr>
+            <td class="ps-4 py-3 fw-bold text-dark">
+                <i class="bi bi-hdd-network text-primary me-2"></i>${acc.nome_mundo}
+            </td>
+            <td class="py-3 text-center">
+                <span class="badge bg-secondary-subtle text-uppercase text-secondary border px-2 py-1">
+                    ${acc.pais}
+                </span>
+            </td>
+            <td class="py-3 fw-semibold text-secondary">
+                <i class="bi bi-person me-1"></i>${acc.nome_usuario}
+            </td>
+            <td class="py-3 text-center">
+                ${statusBadge}
+            </td>
+            <td class="pe-4 py-3 text-end">
+                <a href="#" class="btn btn-sm btn-primary rounded-3 px-3 fw-semibold text-nowrap">
+                    <i class="bi bi-gear-fill me-1"></i> Gerenciar Conta
+                </a>
+            </td>
+        </tr>`;
+    });
+
+    modalContainer.innerHTML = `
+      <div class="table-responsive rounded-3 border">
+          <table class="table table-hover align-middle mb-0 w-100">
+              <thead class="table-light border-bottom">
+              <tr>
+                  <th scope="col" class="ps-4 py-3 text-secondary small fw-semibold" style="width: 25%;">MUNDO</th>
+                  <th scope="col" class="py-3 text-secondary small fw-semibold text-center" style="width: 15%;">PAÍS</th>
+                  <th scope="col" class="py-3 text-secondary small fw-semibold" style="width: 20%;">NOME</th>
+                  <th scope="col" class="py-3 text-secondary small fw-semibold text-center" style="width: 20%;">STATUS</th>
+                  <th scope="col" class="pe-4 py-3 text-end text-secondary small fw-semibold" style="width: 20%;">AÇÕES</th>
+              </tr>
+              </thead>
+              <tbody>
+                  ${rowsHtml}
+              </tbody>
+          </table>
+      </div>`;
+  }
+
   // ==========================================
   // ATUALIZAÇÃO EM TEMPO REAL (POLLING VIA API)
   // ==========================================
@@ -625,7 +780,34 @@
             }
           }
 
-          // 5. Atualiza o Botão de Ação Toggle
+          // 5. ATUALIZA A QUANTIDADE E TABELA DE SERVIDORES EM TEMPO REAL
+          if (info.accounts_count !== undefined) {
+            // Atualiza Tabela Desktop
+            const serversDesktop = document.getElementById(`lobby-servers-count-${lobbyId}`);
+            if (serversDesktop) {
+              serversDesktop.textContent = `${info.accounts_count} Servidor(es)`;
+            }
+
+            // Atualiza Card Mobile
+            const serversMobile = document.getElementById(`lobby-servers-count-mobile-${lobbyId}`);
+            if (serversMobile) {
+              serversMobile.textContent = info.accounts_count;
+            }
+
+            // Atualiza Rodapé do Modal
+            const modalTotal = document.getElementById(`lobby-modal-total-${lobbyId}`);
+            if (modalTotal) {
+              modalTotal.textContent = info.accounts_count;
+            }
+
+            // Atualiza a Tabela Interna do Modal
+            const modalBody = document.getElementById(`lobby-modal-body-${lobbyId}`);
+            if (modalBody && info.accounts) {
+              renderModalAccounts(modalBody, info.accounts);
+            }
+          }
+
+          // 6. Atualiza o Botão de Ação Toggle
           const btnToggle = document.getElementById(`btn-toggle-${lobbyId}`);
           const btnIcon = document.getElementById(`btn-toggle-icon-${lobbyId}`);
           if (btnToggle && btnIcon) {

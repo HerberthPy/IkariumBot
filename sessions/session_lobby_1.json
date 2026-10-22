@@ -1,1 +1,55 @@
-{"cookies": [{"name": "GTPINGRESSCOOKIE", "value": "fdf292377f582e48ed1b19bba3bbcba4", "domain": ".gameforge.com", "path": "/", "expires": 1795238213.818586, "httpOnly": true, "secure": true, "sameSite": "Strict"}, {"name": "__cf_bm", "value": "Bc9nJkOIhEz0FrRhb7u9bSDJpvdZrx1kEaGo9o3.XdU-1792646197.2340174-1.0.1.1-wtzEKxejul6PNLPPbPwoVnIVwsPeNPFcs5p8tYngNpAfFiV8CCaveVjHIAGp5unHsgUvPuC5cJtKNoB7BX.PQnoUaLkr24QpbKu1aaaRStzSL8Q5gXPWmS.ujoFvA79S", "domain": ".gameforge.com", "path": "/", "expires": 1792647996.388623, "httpOnly": true, "secure": true, "sameSite": "None"}, {"name": "pc_idt", "value": "AOGref-_4vVmGVVcbJcf0j0NJmE8SFOgRIootyFzMyog5wO1CfEBQ1Ob4hYt9qVBJRB_s1quB2_yS2UUQLKhbD8tayuv3p1LfutVtdOWzdfKMaAIB0lLDmB1UW4EXhPbcpq-xAiMu21O4YJUbBb7KcbzdGtznZxLcnBfuQ", "domain": ".gameforge.com", "path": "/", "expires": 1824182203.746194, "httpOnly": true, "secure": false, "sameSite": "Lax"}, {"name": "gf-token-production", "value": "b1d3d7b5-ec98-4248-b5b0-4fa4897eb628", "domain": ".gameforge.com", "path": "/", "expires": 1800422212.880665, "httpOnly": false, "secure": false, "sameSite": "Lax"}, {"name": "gf_pz_token", "value": "72b4035d-0659-4105-9f94-764cfe785d78", "domain": ".gameforge.com", "path": "/", "expires": 1800422213.818145, "httpOnly": false, "secure": false, "sameSite": "Lax"}], "local_storage": "{\"x-game\":\"zybfei6tgf3x7md6h5cvrcotj2a\",\"hasLoggedIn\":\"true\",\"x-vec\":\"?t\\\\^PJhUn:\\\"?tm3uRuNI+rJ@A^r_22Etl$]bJ]{d^=TAWE<(HE?j- `*)+D-M,TUe2Vs4ZxLD#4OK>PlK.)$a&}h Q1&F8){V&$o 1792646199225\"}"}
+{
+    "cookies": [
+        {
+            "name": "GTPINGRESSCOOKIE",
+            "value": "d917cf8a067aae72ee9ab410ea3de22d",
+            "domain": ".gameforge.com",
+            "path": "/",
+            "expires": 1795242221.999755,
+            "httpOnly": true,
+            "secure": true,
+            "sameSite": "Strict"
+        },
+        {
+            "name": "__cf_bm",
+            "value": "TPcJk6pSw68BBkLHtWmnXuc3CVFiQ_8C55xlU_P2i.o-1792650212.9950447-1.0.1.1-GURYaFheefHgrWRIU5tXc5HhLGlBILbR5Wk6HAQnqRGHavwe_8N_T4MqOumOzjjZHHAGdE9fOKckHmBz9U6x_y0ra81wknQuxki6up5hmHTMoImvHm9Vc4yuw__7ngjN",
+            "domain": ".gameforge.com",
+            "path": "/",
+            "expires": 1792652012.170255,
+            "httpOnly": true,
+            "secure": true,
+            "sameSite": "None"
+        },
+        {
+            "name": "pc_idt",
+            "value": "AFkOL97T2qlLXBuP6zrCNxhfpQ7nTU4uZWGlUPV_G20GQURc70lFMezABYYxjoQZGlZw41cTIfpx7uS3abQzgoAGAvrIKCrBNMBE3VZQ_z4zRSRdmjvwYSIbodVrDur2GKY40nbMWuInUbrvz3Lg7BzhSUM0NDa881m1iA",
+            "domain": ".gameforge.com",
+            "path": "/",
+            "expires": 1824186221.499302,
+            "httpOnly": true,
+            "secure": false,
+            "sameSite": "Lax"
+        },
+        {
+            "name": "gf-token-production",
+            "value": "f9bcd5b0-8181-4427-bd96-66a9c3d4cabd",
+            "domain": ".gameforge.com",
+            "path": "/",
+            "expires": 1800426220.041881,
+            "httpOnly": false,
+            "secure": false,
+            "sameSite": "Lax"
+        },
+        {
+            "name": "gf_pz_token",
+            "value": "72b4035d-0659-4105-9f94-764cfe785d78",
+            "domain": ".gameforge.com",
+            "path": "/",
+            "expires": 1800426221.999543,
+            "httpOnly": false,
+            "secure": false,
+            "sameSite": "Lax"
+        }
+    ],
+    "local_storage": "{\"x-game\":\"dix5ieicif1juaz2bfv5r7vv2uc\",\"hasLoggedIn\":\"true\",\"x-vec\":\"xJ;M}H:%t3[U?dm}}<us1Y8?DQm|.{=0v`@Jm=%RFpDF]xOtr3#u-`A oq y0/f\\\\[X[z,Njk+4ePzp*Ys owD*}m7!;-xK\\\\IH'*C 1792650217885\"}"
+}

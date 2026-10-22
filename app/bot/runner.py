@@ -1,3 +1,5 @@
+# app/bot/runner.py
+
 import threading
 import time
 from playwright.sync_api import sync_playwright
@@ -46,8 +48,12 @@ class BotManager:
                 p = sync_playwright().start()
                 browser = p.chromium.launch(headless=False)
 
-                # 1. Autenticação (Fase 1 / Fase 2) via Módulo AuthManager
+                # 1. Autenticação utilizando os cookies/storage_state salvos do cliente
                 context, page = AuthManager.get_authenticated_context(browser, lobby, proxy_config)
+
+                # Marca no banco que o lobby possui uma sessão ativa válida
+                lobby.has_session = True
+                db.session.commit()
 
                 # 2. Instancia a lista mutável de contas compartilhada por referência
                 captured_accounts = []
@@ -58,11 +64,6 @@ class BotManager:
                 # 4. Executa a tarefa de scraping e sincronização no BD
                 AccountsScraperTask.run(lobby, page, captured_accounts)
 
-                # Futuramente, você poderá ler as preferências do usuário no Banco de Dados
-                # Exemplo:
-                # if lobby.user_config.auto_donate_mines:
-                #     MinesTask.run(lobby, page)
-
                 print(f"[BotManager] Lobby '{lobby.nickname}' rodando tarefas ativas...")
 
                 while not stop_event.is_set():
@@ -70,6 +71,9 @@ class BotManager:
 
             except Exception as e:
                 print(f"[BotManager ERRO] Falha no Lobby #{lobby_id}: {e}")
+
+                # Se a falha foi por sessão expirada/ausente, atualiza a flag no banco
+                lobby.has_session = lobby.is_session_valid
                 lobby.status = 'ERRO'
                 db.session.commit()
 

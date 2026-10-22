@@ -22,8 +22,24 @@ class AuthManager:
         return "IP Não Obtido"
 
     @classmethod
+    def get_session_file_path(cls, lobby_id):
+        """Retorna o caminho do ficheiro JSON de sessão do lobby."""
+        return os.path.join(SESSIONS_DIR, f"session_lobby_{lobby_id}.json")
+
+    @classmethod
+    def save_client_session(cls, lobby_id, cookies, local_storage):
+        """Salva em disco os cookies e local_storage capturados via cliente/navegador."""
+        session_file = cls.get_session_file_path(lobby_id)
+        with open(session_file, "w", encoding="utf-8") as f:
+            json.dump({
+                "cookies": cookies,
+                "local_storage": local_storage if isinstance(local_storage, str) else json.dumps(local_storage)
+            }, f)
+        print(f"[Auth] Sessão do cliente gravada com sucesso para o Lobby #{lobby_id}!")
+
+    @classmethod
     def get_authenticated_context(cls, browser, lobby, proxy_config):
-        session_file = os.path.join(SESSIONS_DIR, f"session_lobby_{lobby.id}.json")
+        session_file = cls.get_session_file_path(lobby.id)
         cookies = []
         local_storage = "{}"
         session_valid = False
@@ -35,70 +51,32 @@ class AuthManager:
                     saved_data = json.load(f)
                     cookies = saved_data.get("cookies", [])
                     local_storage = saved_data.get("local_storage", "{}")
-                    session_valid = True
+                    if cookies:
+                        session_valid = True
             except Exception as ex:
-                print(f"[Auth AVISO] Erro ao ler sessão salva: {ex}. Forçando novo login.")
+                print(f"[Auth AVISO] Erro ao ler sessão salva: {ex}.")
 
-        # FASE 1: Login sem Proxy (quando não há sessão válida)
+        # Se não houver sessão salva do cliente, interrompe a automação pedindo a autenticação
         if not session_valid:
-            print(f"[Auth] Executando FASE 1 (Login sem Proxy) para '{lobby.nickname}'...")
-            clean_context = browser.new_context()
-            login_page = clean_context.new_page()
+            raise Exception(
+                f"O Lobby '{lobby.nickname}' ainda não possui uma sessão válida salva. "
+                f"Por favor, realize a primeira autenticação via painel para resolver eventuais CAPTCHAs."
+            )
 
-            print(f"[Auth IP] FASE 1 - IP Real: {cls._get_current_ip(login_page)}")
-
-            login_page.goto("https://lobby.ikariam.gameforge.com/pt_BR/", timeout=30000, wait_until="domcontentloaded")
-
-            # Aceita Cookies se o banner estiver visível
-            try:
-                btn_cookie = login_page.locator("button:has-text('Accept Cookies'), button:has-text('Aceitar')").first
-                if btn_cookie.is_visible(timeout=3000):
-                    btn_cookie.click()
-            except Exception:
-                pass
-
-            login_page.get_by_text("Login").click()
-            login_page.locator("input[name=\"email\"]").fill(lobby.email)
-            login_page.locator("input[name=\"password\"]").fill(lobby.get_password())
-            login_page.get_by_role("button", name="Login", exact=True).click()
-
-            # Trata Captcha se surgir
-            login_page.wait_for_timeout(2000)
-            geetest_selector = ".geetest_slider, .geetest_box, [class*='geetest']"
-            try:
-                if login_page.locator(geetest_selector).first.is_visible(timeout=3000):
-                    print(f"[Auth AVISO] Captcha detectado para '{lobby.nickname}'! Aguardando resolução...")
-                    login_page.locator(geetest_selector).first.wait_for(state="detached", timeout=120000)
-            except Exception:
-                pass
-
-            print(f"[Auth] Aguardando redirecionamento para o Hub...")
-            login_page.wait_for_url("**/hub**", timeout=60000, wait_until="domcontentloaded")
-
-            # Aguarda o elemento visual do botão de jogar carregar em vez de esperar pelo 'networkidle'
-            login_page.locator("button:has-text('JOGAR'), button:has-text('PLAY')").first.wait_for(state="visible", timeout=30000)
-
-            cookies = clean_context.cookies()
-            local_storage = login_page.evaluate("() => JSON.stringify(localStorage)")
-            clean_context.close()
-
-            with open(session_file, "w", encoding="utf-8") as f:
-                json.dump({"cookies": cookies, "local_storage": local_storage}, f)
-            print(f"[Auth] Nova sessão gravada em disco para '{lobby.nickname}'!")
-
-        # FASE 2: Restauração via Proxy
-        print(f"[Auth] Executando FASE 2 (Com Proxy) para '{lobby.nickname}'...")
+        # FASE UNIFICADA: Restauração da Sessão via Proxy
+        print(f"[Auth] Restaurando sessão com Proxy para '{lobby.nickname}'...")
         proxy_context = browser.new_context(proxy=proxy_config)
+
         if cookies:
             proxy_context.add_cookies(cookies)
 
         page = proxy_context.new_page()
-        print(f"[Auth IP] FASE 2 - IP da Proxy #{lobby.proxy.id}: {cls._get_current_ip(page)}")
+        print(f"[Auth IP] Proxy #{lobby.proxy.id if lobby.proxy else 'Sem Proxy'}: {cls._get_current_ip(page)}")
 
-        # Navega para a origem antes de injetar o localStorage
+        # Navega para a origem do lobby para aplicar o localStorage
         page.goto("https://lobby.ikariam.gameforge.com/pt_BR/", timeout=30000, wait_until="domcontentloaded")
 
-        # Aceita cookies se surgir
+        # Aceita cookies se o banner da Gameforge surgir
         try:
             btn_cookie = page.locator("button:has-text('Accept Cookies'), button:has-text('Aceitar')").first
             if btn_cookie.is_visible(timeout=3000):
@@ -107,9 +85,21 @@ class AuthManager:
             pass
 
         # Injeta LocalStorage
-        page.evaluate(
-            f"storage => {{ const data = JSON.parse(storage); for (const key in data) {{ localStorage.setItem(key, data[key]); }} }}",
-            local_storage
-        )
+        if local_storage and local_storage != "{}":
+            page.evaluate(
+                f"storage => {{ const data = typeof storage === 'string' ? JSON.parse(storage) : storage; for (const key in data) {{ localStorage.setItem(key, data[key]); }} }}",
+                local_storage
+            )
+
+        # Atualiza para garantir navegação autenticada no Hub
+        page.goto("https://lobby.ikariam.gameforge.com/pt_BR/hub", timeout=30000, wait_until="domcontentloaded")
+
+        # Verifica se o login permaneceu ativo ou se os cookies expiraram
+        if "login" in page.url.lower():
+            # Apaga o arquivo de sessão expirado para forçar novo login pelo usuário
+            if os.path.exists(session_file):
+                os.remove(session_file)
+            proxy_context.close()
+            raise Exception(f"A sessão salva para o Lobby '{lobby.nickname}' expirou. Faça login novamente no painel.")
 
         return proxy_context, page

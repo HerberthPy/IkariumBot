@@ -1,4 +1,5 @@
 import base64
+import os
 from datetime import datetime
 import pytz
 from flask import current_app
@@ -129,6 +130,7 @@ class Lobby(db.Model):
     email = db.Column(db.String(120), nullable=False)
     password_encrypted = db.Column(db.String(255), nullable=False)
     status = db.Column(db.String(20), default='ATIVO')
+    has_session = db.Column(db.Boolean, default=False)  # Indica se os cookies/storage_state foram capturados
     created_at = db.Column(db.DateTime, default=get_brasilia_time)
 
     # Dono do Lobby e Proxy vinculada
@@ -160,6 +162,19 @@ class Lobby(db.Model):
             return cipher.decrypt(self.password_encrypted.encode('utf-8')).decode('utf-8')
         except (InvalidToken, Exception):
             return self.password_encrypted
+
+    def get_session_path(self):
+        """Retorna o caminho absoluto do arquivo JSON de sessão do Playwright para este Lobby."""
+        base_dir = current_app.root_path
+        sessions_dir = os.path.join(os.path.dirname(base_dir), 'sessions')
+        os.makedirs(sessions_dir, exist_ok=True)
+        return os.path.join(sessions_dir, f'session_lobby_{self.id}.json')
+
+    @property
+    def is_session_valid(self):
+        """Verifica se o ficheiro de sessão JSON realmente existe no disco."""
+        session_file = self.get_session_path()
+        return os.path.exists(session_file) and os.path.getsize(session_file) > 0
 
 
 class Conta(db.Model):
