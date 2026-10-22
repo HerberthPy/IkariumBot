@@ -182,15 +182,32 @@ class Conta(db.Model):
 
     id = db.Column(db.Integer, primary_key=True)
     gameforge_account_id = db.Column(db.String(100), nullable=True, index=True)  # ID único da conta na Gameforge
-    servidor = db.Column(db.String(100), nullable=False)                          # Ex: Alpha, Beta, etc.
-    pais = db.Column(db.String(10), nullable=False, default='pt')                 # Ex: pt, br, en
-    nome_usuario = db.Column(db.String(100), nullable=False)                      # Nome do jogador no servidor
-    email = db.Column(db.String(120), nullable=False)                             # E-mail associado
-    ativo = db.Column(db.Boolean, default=True)                                   # Status da conta na Gameforge
+    servidor = db.Column(db.String(100), nullable=False)  # Ex: Alpha, Beta, etc.
+    pais = db.Column(db.String(10), nullable=False, default='pt')  # Ex: pt, br, en
+    nome_usuario = db.Column(db.String(100), nullable=False)  # Nome do jogador no servidor
+    email = db.Column(db.String(120), nullable=False)  # E-mail associado
+    ativo = db.Column(db.Boolean, default=True)  # Status da conta na Gameforge
+
+    # NOVOS CAMPOS PARA CONTROLE DE AUTOMAÇÃO E REGISTRO DE ACESSO
+    automacao_ativa = db.Column(db.Boolean, default=True, nullable=False)  # Se a automação deve rodar nesta conta
+    ultimo_login = db.Column(db.DateTime, nullable=True)  # Data e hora do último acesso pelo bot
+
     created_at = db.Column(db.DateTime, default=get_brasilia_time)
 
     # Chave estrangeira vinculando a conta ao Lobby
     lobby_id = db.Column(db.Integer, db.ForeignKey('lobbies.id'), nullable=False)
+
+    @property
+    def dias_sem_login(self):
+        """Calcula a diferença em dias entre a data do último login e a data atual."""
+        if not self.ultimo_login:
+            return "Nunca"
+
+        agora = get_brasilia_time().replace(tzinfo=None)
+        ultimo = self.ultimo_login.replace(tzinfo=None) if self.ultimo_login.tzinfo else self.ultimo_login
+
+        dias = (agora.date() - ultimo.date()).days
+        return max(0, dias)
 
     def __repr__(self):
         return f'<Conta {self.nome_usuario} @ {self.servidor} ({self.pais})>'

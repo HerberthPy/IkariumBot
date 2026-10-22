@@ -34,18 +34,20 @@
         <div class="d-flex align-items-center gap-2">
             {% if lobbies %}
                 <!-- DISJUNTOR GERAL: LIGAR TODOS -->
-                <form action="{{ url_for('main.start_bot') }}" method="POST" class="d-inline">
-                    <button type="submit" class="btn btn-success rounded-3 shadow-sm py-2 px-3 fw-semibold" title="Iniciar navegadores de todos os lobbies ativos">
-                        <i class="bi bi-play-fill me-1"></i> Ligar Todos
-                    </button>
-                </form>
+                <button type="button"
+                        onclick="executarAcaoLote('{{ url_for('main.start_bot') }}', 'Iniciando automação de todos os lobbies elegíveis...')"
+                        class="btn btn-success rounded-3 shadow-sm py-2 px-3 fw-semibold"
+                        title="Iniciar navegadores de todos os lobbies ativos">
+                    <i class="bi bi-play-fill me-1"></i> Ligar Todos
+                </button>
 
                 <!-- DISJUNTOR GERAL: DESLIGAR TODOS -->
-                <form action="{{ url_for('main.stop_all_bots') }}" method="POST" class="d-inline">
-                    <button type="submit" class="btn btn-outline-danger rounded-3 shadow-sm py-2 px-3 fw-semibold" title="Encerrar todas as janelas ativas imediatamente">
-                        <i class="bi bi-stop-fill me-1"></i> Desligar Todos
-                    </button>
-                </form>
+                <button type="button"
+                        onclick="executarAcaoLote('{{ url_for('main.stop_all_bots') }}', 'Encerrando a automação de todos os lobbies imediatamente...')"
+                        class="btn btn-outline-danger rounded-3 shadow-sm py-2 px-3 fw-semibold"
+                        title="Encerrar todas as janelas ativas imediatamente">
+                    <i class="bi bi-stop-fill me-1"></i> Desligar Todos
+                </button>
             {% endif %}
 
             <!-- BOTÃO CADASTRAR NOVO LOBBY -->
@@ -384,7 +386,7 @@
         </div>
         {% endfor %}
 
-        <!-- MODAL DE SERVIDORES DO LOBBY (COM ATUALIZAÇÃO EM TEMPO REAL) -->
+        <!-- MODAL DE SERVIDORES DO LOBBY -->
         {% for lobby in lobbies %}
         <div class="modal fade" id="modalAccLobby-{{ lobby.id }}" tabindex="-1" aria-hidden="true">
             <div class="modal-dialog modal-dialog-centered modal-xl">
@@ -406,10 +408,11 @@
                             <table class="table table-hover align-middle mb-0 w-100">
                                 <thead class="table-light border-bottom">
                                 <tr>
-                                    <th scope="col" class="ps-4 py-3 text-secondary small fw-semibold" style="width: 25%;">MUNDO</th>
-                                    <th scope="col" class="py-3 text-secondary small fw-semibold text-center" style="width: 15%;">PAÍS</th>
-                                    <th scope="col" class="py-3 text-secondary small fw-semibold" style="width: 20%;">NOME</th>
-                                    <th scope="col" class="py-3 text-secondary small fw-semibold text-center" style="width: 20%;">STATUS</th>
+                                    <th scope="col" class="ps-4 py-3 text-secondary small fw-semibold" style="width: 20%;">MUNDO</th>
+                                    <th scope="col" class="py-3 text-secondary small fw-semibold text-center" style="width: 10%;">PAÍS</th>
+                                    <th scope="col" class="py-3 text-secondary small fw-semibold" style="width: 18%;">NOME</th>
+                                    <th scope="col" class="py-3 text-secondary small fw-semibold text-center" style="width: 17%;">ÚLTIMO LOGIN</th>
+                                    <th scope="col" class="py-3 text-secondary small fw-semibold text-center" style="width: 15%;">STATUS</th>
                                     <th scope="col" class="pe-4 py-3 text-end text-secondary small fw-semibold" style="width: 20%;">AÇÕES</th>
                                 </tr>
                                 </thead>
@@ -433,6 +436,23 @@
                                         <i class="bi bi-person me-1"></i>{{ conta.nome_usuario }}
                                     </td>
 
+                                    <!-- Dias Sem Login -->
+                                    <td class="py-3 text-center">
+                                        {% if conta.dias_sem_login == "Nunca" %}
+                                            <span class="badge bg-secondary-subtle text-secondary border rounded-pill px-2 py-1 small">
+                                                <i class="bi bi-clock-history me-1"></i>Nunca
+                                            </span>
+                                        {% elif conta.dias_sem_login == 0 %}
+                                            <span class="badge bg-success-subtle text-success border border-success-subtle rounded-pill px-2 py-1 small">
+                                                <i class="bi bi-check-all me-1"></i>Hoje
+                                            </span>
+                                        {% else %}
+                                            <span class="badge bg-warning-subtle text-dark border border-warning-subtle rounded-pill px-2 py-1 small">
+                                                <i class="bi bi-exclamation-circle me-1"></i>{{ conta.dias_sem_login }} dia(s) atrás
+                                            </span>
+                                        {% endif %}
+                                    </td>
+
                                     <!-- Status da Conta -->
                                     <td class="py-3 text-center">
                                         {% if conta.ativo %}
@@ -446,8 +466,13 @@
                                         {% endif %}
                                     </td>
 
-                                    <!-- Botão de Ação -->
+                                    <!-- Botões de Ação (Ação do Bot + Gerenciar) -->
                                     <td class="pe-4 py-3 text-end">
+                                        <button class="btn btn-sm {{ 'btn-outline-danger' if conta.automacao_ativa else 'btn-outline-success' }} rounded-3 me-1 px-2 fw-semibold"
+                                                onclick="toggleAutomacaoConta({{ conta.id }})"
+                                                title="{{ 'Pausar Automação deste servidor' if conta.automacao_ativa else 'Ativar Automação deste servidor' }}">
+                                            <i class="bi {{ 'bi-pause-circle-fill' if conta.automacao_ativa else 'bi-play-circle-fill' }}"></i>
+                                        </button>
                                         <a href="#" class="btn btn-sm btn-primary rounded-3 px-3 fw-semibold text-nowrap">
                                             <i class="bi bi-gear-fill me-1"></i> Gerenciar Conta
                                         </a>
@@ -637,6 +662,40 @@
   }
 
   // ==========================================
+  // DISJUNTOR GERAL: LIGAR TODOS / DESLIGAR TODOS (AJAX)
+  // ==========================================
+  function executarAcaoLote(urlAction, mensagemSucesso) {
+    fetch(urlAction, {
+      method: 'POST',
+      headers: { 'X-Requested-With': 'XMLHttpRequest' }
+    })
+    .then(() => {
+      showAlertMessage(mensagemSucesso, 'info');
+      checkLobbiesStatus();
+    })
+    .catch(err => console.error('Erro ao executar ação em lote:', err));
+  }
+
+  // ==========================================
+  // LIGAR/DESLIGAR AUTOMAÇÃO DA CONTA INDIVIDUAL
+  // ==========================================
+  function toggleAutomacaoConta(contaId) {
+    fetch(`/contas/${contaId}/toggle-automacao`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' }
+    })
+    .then(res => res.json())
+    .then(data => {
+      if (data.success) {
+        checkLobbiesStatus();
+      } else {
+        alert(data.message || 'Erro ao alterar estado da automação.');
+      }
+    })
+    .catch(err => console.error('Erro ao alternar automação da conta:', err));
+  }
+
+  // ==========================================
   // FUNÇÃO DE RENDERIZAÇÃO DAS CONTAS NO MODAL
   // ==========================================
   function renderModalAccounts(modalContainer, accounts) {
@@ -656,6 +715,19 @@
         ? `<span class="badge bg-success-subtle text-success border border-success-subtle rounded-pill px-3 py-1 fw-semibold"><i class="bi bi-check-circle-fill me-1"></i>Ativa</span>`
         : `<span class="badge bg-danger-subtle text-danger border border-danger-subtle rounded-pill px-3 py-1 fw-semibold"><i class="bi bi-x-circle-fill me-1"></i>Bloqueada</span>`;
 
+      let loginBadge = '';
+      if (acc.dias_sem_login === "Nunca") {
+        loginBadge = `<span class="badge bg-secondary-subtle text-secondary border rounded-pill px-2 py-1 small"><i class="bi bi-clock-history me-1"></i>Nunca</span>`;
+      } else if (acc.dias_sem_login === 0) {
+        loginBadge = `<span class="badge bg-success-subtle text-success border border-success-subtle rounded-pill px-2 py-1 small"><i class="bi bi-check-all me-1"></i>Hoje</span>`;
+      } else {
+        loginBadge = `<span class="badge bg-warning-subtle text-dark border border-warning-subtle rounded-pill px-2 py-1 small"><i class="bi bi-exclamation-circle me-1"></i>${acc.dias_sem_login} dia(s) atrás</span>`;
+      }
+
+      const autoBtnClass = acc.automacao_ativa ? 'btn-outline-danger' : 'btn-outline-success';
+      const autoIcon = acc.automacao_ativa ? 'bi-pause-circle-fill' : 'bi-play-circle-fill';
+      const autoTitle = acc.automacao_ativa ? 'Pausar Automação deste servidor' : 'Ativar Automação deste servidor';
+
       rowsHtml += `
         <tr>
             <td class="ps-4 py-3 fw-bold text-dark">
@@ -670,9 +742,17 @@
                 <i class="bi bi-person me-1"></i>${acc.nome_usuario}
             </td>
             <td class="py-3 text-center">
+                ${loginBadge}
+            </td>
+            <td class="py-3 text-center">
                 ${statusBadge}
             </td>
             <td class="pe-4 py-3 text-end">
+                <button class="btn btn-sm ${autoBtnClass} rounded-3 me-1 px-2 fw-semibold"
+                        onclick="toggleAutomacaoConta(${acc.id})"
+                        title="${autoTitle}">
+                    <i class="bi ${autoIcon}"></i>
+                </button>
                 <a href="#" class="btn btn-sm btn-primary rounded-3 px-3 fw-semibold text-nowrap">
                     <i class="bi bi-gear-fill me-1"></i> Gerenciar Conta
                 </a>
@@ -685,10 +765,11 @@
           <table class="table table-hover align-middle mb-0 w-100">
               <thead class="table-light border-bottom">
               <tr>
-                  <th scope="col" class="ps-4 py-3 text-secondary small fw-semibold" style="width: 25%;">MUNDO</th>
-                  <th scope="col" class="py-3 text-secondary small fw-semibold text-center" style="width: 15%;">PAÍS</th>
-                  <th scope="col" class="py-3 text-secondary small fw-semibold" style="width: 20%;">NOME</th>
-                  <th scope="col" class="py-3 text-secondary small fw-semibold text-center" style="width: 20%;">STATUS</th>
+                  <th scope="col" class="ps-4 py-3 text-secondary small fw-semibold" style="width: 20%;">MUNDO</th>
+                  <th scope="col" class="py-3 text-secondary small fw-semibold text-center" style="width: 10%;">PAÍS</th>
+                  <th scope="col" class="py-3 text-secondary small fw-semibold" style="width: 18%;">NOME</th>
+                  <th scope="col" class="py-3 text-secondary small fw-semibold text-center" style="width: 17%;">ÚLTIMO LOGIN</th>
+                  <th scope="col" class="py-3 text-secondary small fw-semibold text-center" style="width: 15%;">STATUS</th>
                   <th scope="col" class="pe-4 py-3 text-end text-secondary small fw-semibold" style="width: 20%;">AÇÕES</th>
               </tr>
               </thead>
@@ -712,7 +793,6 @@
           const prevStatus = previousStatuses[lobbyId];
           previousStatuses[lobbyId] = info.status;
 
-          // Se acabou de transicionar de ATIVO para ERRO em segundo plano
           if (prevStatus && prevStatus !== 'ERRO' && info.status === 'ERRO') {
             document.querySelectorAll('.alert-success').forEach(el => el.remove());
             showAlertMessage(`Ocorreu uma falha de conexão no Lobby #${lobbyId}. O status foi alterado para ERRO.`, 'warning');
@@ -782,25 +862,21 @@
 
           // 5. ATUALIZA A QUANTIDADE E TABELA DE SERVIDORES EM TEMPO REAL
           if (info.accounts_count !== undefined) {
-            // Atualiza Tabela Desktop
             const serversDesktop = document.getElementById(`lobby-servers-count-${lobbyId}`);
             if (serversDesktop) {
               serversDesktop.textContent = `${info.accounts_count} Servidor(es)`;
             }
 
-            // Atualiza Card Mobile
             const serversMobile = document.getElementById(`lobby-servers-count-mobile-${lobbyId}`);
             if (serversMobile) {
               serversMobile.textContent = info.accounts_count;
             }
 
-            // Atualiza Rodapé do Modal
             const modalTotal = document.getElementById(`lobby-modal-total-${lobbyId}`);
             if (modalTotal) {
               modalTotal.textContent = info.accounts_count;
             }
 
-            // Atualiza a Tabela Interna do Modal
             const modalBody = document.getElementById(`lobby-modal-body-${lobbyId}`);
             if (modalBody && info.accounts) {
               renderModalAccounts(modalBody, info.accounts);
@@ -831,7 +907,7 @@
     if (container) {
       container.innerHTML = `
         <div class="alert alert-${category} alert-dismissible fade show small mb-4" role="alert">
-            <i class="bi bi-exclamation-triangle-fill me-2"></i> ${message}
+            <i class="bi bi-info-circle-fill me-2"></i> ${message}
             <button type="button" class="btn-close" data-bs-dismiss="alert" aria-label="Close"></button>
         </div>`;
     }

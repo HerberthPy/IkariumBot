@@ -1,0 +1,55 @@
+{
+    "cookies": [
+        {
+            "name": "GTPINGRESSCOOKIE",
+            "value": "027b73ebc04df7be61743fa96922a035",
+            "domain": ".gameforge.com",
+            "path": "/",
+            "expires": 1795258196.643829,
+            "httpOnly": true,
+            "secure": true,
+            "sameSite": "Strict"
+        },
+        {
+            "name": "__cf_bm",
+            "value": "gSc54bAAo7JUxEGn1_CWTA6X3JMb9ydvc5WVV6wUrbA-1792666180.5337932-1.0.1.1-1D1rzvKGsBr3kvhnqcWyx.2dXgG5TclFFTNpzvqFhZMYmE4mrQKPoS0pyuJCi.0O7yHrQb.eCbiyt2lB0MOUlLBsrAjCUn_.68zvhe.g3UIdF4z5hY4fWfr79aHEnmgs",
+            "domain": ".gameforge.com",
+            "path": "/",
+            "expires": 1792667979.824793,
+            "httpOnly": true,
+            "secure": true,
+            "sameSite": "None"
+        },
+        {
+            "name": "pc_idt",
+            "value": "ALKn17eEgeHMli356aSkmc-vjCPUd0N7EVddUi_tHKlaTCxQ6YsVPhNLLMWsZDodeXSpIakEMZXXafbOghWdUgRrZ57sVa8hWQV69VPpd7Vo0hd6qXLEglkkUW6QCeQcgZyLPkGVr_2oA_qNVMIyTdUtCjaWvbB29t2pCg",
+            "domain": ".gameforge.com",
+            "path": "/",
+            "expires": 1824202195.870451,
+            "httpOnly": true,
+            "secure": false,
+            "sameSite": "Lax"
+        },
+        {
+            "name": "gf-token-production",
+            "value": "7195f5bf-d057-4b94-9778-356ec0ba4cdf",
+            "domain": ".gameforge.com",
+            "path": "/",
+            "expires": 1800442194.371885,
+            "httpOnly": false,
+            "secure": false,
+            "sameSite": "Lax"
+        },
+        {
+            "name": "gf_pz_token",
+            "value": "6ec839f0-063e-4677-9fe8-e70fbac6a1c7",
+            "domain": ".gameforge.com",
+            "path": "/",
+            "expires": 1800442196.643703,
+            "httpOnly": false,
+            "secure": false,
+            "sameSite": "Lax"
+        }
+    ],
+    "local_storage": "{\"x-game\":\"7jm0aa64my9nr0oubkaokl5n1ru\",\"hasLoggedIn\":\"true\",\"x-vec\":\"{V>6NY8IE79:J[sm!D [,!#qW\\\"8fTCYYK87zN.sLBe>;$1 Hk/\\\"VWlu3eFaeZ;OiO`GT$ew8&*x6mv:O-.%s(4Q rUBcXP-qLn2k 1792666184222\"}"
+}

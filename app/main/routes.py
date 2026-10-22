@@ -1,10 +1,11 @@
 # app/main/routes.py
+
 import os
 import json
 from flask import render_template, request, redirect, url_for, flash, current_app, jsonify
 from flask_login import login_required, current_user
 from app import db
-from app.models import Proxy, Lobby, User
+from app.models import Proxy, Lobby, User, Conta
 from app.main import main_bp
 from app.main.tasks import sync_webshare_job
 from app.main.decorators import admin_required, user_active_required
@@ -286,6 +287,7 @@ def toggle_lobby_status(lobby_id):
 
     if lobby.status in ['ATIVO', 'ERRO']:
         lobby.status = 'INATIVO'
+        db.session.commit()
         # Fecha exclusivamente o navegador deste lobby
         BotManager.stop_lobby(lobby.id)
         flash(f'Lobby "{lobby.nickname}" inativado e navegador encerrado com sucesso.', 'warning')
@@ -299,17 +301,17 @@ def toggle_lobby_status(lobby_id):
             return redirect(url_for('main.lobbies_list'))
 
         lobby.status = 'ATIVO'
+        db.session.commit()
         # Abre o navegador imediatamente ao ativar
         app = current_app._get_current_object()
         BotManager.start_lobby(lobby.id, app)
         flash(f'Lobby "{lobby.nickname}" ativado e automação iniciada!', 'success')
 
-    db.session.commit()
     return redirect(url_for('main.lobbies_list'))
 
 
 # ==========================================
-# ROTAS DE AUTENTICAÇÃO INTERATIVA DE SESSÃO (SEM PROXY E PREENCHIDO)
+# ROTAS DE AUTENTICAÇÃO INTERATIVA DE SESSÃO
 # ==========================================
 
 @main_bp.route('/lobbies/<int:lobby_id>/autenticar-interativo', methods=['POST'])
@@ -326,31 +328,24 @@ def authenticate_lobby_interactive(lobby_id):
         lobby_password = lobby.get_password()
 
         with sync_playwright() as p:
-            # Abre o navegador com interface gráfica visível e sem proxy
             browser = p.chromium.launch(headless=False)
-            context = browser.new_context()  # Conexão direta/local
+            context = browser.new_context()
             page = context.new_page()
 
-            # Navega diretamente para a aba de login
             page.goto("https://lobby.ikariam.gameforge.com/pt_BR/login", timeout=60000, wait_until="domcontentloaded")
 
-            # Garante que está na aba 'Entrar' (Login) caso o portal abra na aba 'Cadastrar'
             try:
-                # Clica na aba de Login se ela estiver visível
                 tab_login = page.locator("ul.tabs-header li:has-text('Entrar'), ul.tabs-header li:has-text('Log in')").first
                 if tab_login.is_visible(timeout=3000):
                     tab_login.click()
             except Exception:
                 pass
 
-            # Preenche o E-mail e a Senha com seletores abrangentes do portal Gameforge
             try:
-                # Aguarda o campo de e-mail estar visível
                 email_input = page.locator("input[type='email'], input[name='email'], input[name='login']").first
                 email_input.wait_for(state="visible", timeout=10000)
                 email_input.fill(lobby.email)
 
-                # Preenche a Senha
                 pwd_input = page.locator("input[type='password'], input[name='password']").first
                 pwd_input.wait_for(state="visible", timeout=5000)
                 if lobby_password:
@@ -362,18 +357,14 @@ def authenticate_lobby_interactive(lobby_id):
 
             print(f"[Auth Direct] Aguardando o usuário resolver o CAPTCHA/clicar em Entrar no Lobby #{lobby.id}...")
 
-            # Aguarda o usuário concluir o login/CAPTCHA e ser redirecionado para a área logada (/hub ou /accounts)
             page.wait_for_url(lambda url: "/hub" in url or "/accounts" in url, timeout=180000)
             page.wait_for_timeout(3000)
 
-            # Extrai cookies e localStorage da sessão autenticada
             cookies = context.cookies()
             local_storage = page.evaluate("() => JSON.stringify(localStorage)")
 
-            # Garante a existência do diretório de sessões
             os.makedirs(os.path.dirname(session_file), exist_ok=True)
 
-            # Salva o arquivo de sessão
             with open(session_file, "w", encoding="utf-8") as f:
                 json.dump({"cookies": cookies, "local_storage": local_storage}, f, indent=4)
 
@@ -397,26 +388,34 @@ def authenticate_lobby_interactive(lobby_id):
 @login_required
 @user_active_required
 def start_bot():
-    """Disjuntor Geral: Ligar Todos os Lobbies ATIVOS do usuário."""
+    """Disjuntor Geral: Ligar Todos os Lobbies com sessão válida."""
     app = current_app._get_current_object()
 
-    lobbies = Lobby.query.filter_by(user_id=current_user.id, status='ATIVO').all()
+    lobbies = Lobby.query.filter_by(user_id=current_user.id).all()
     lobbies_para_rodar = [l for l in lobbies if l.proxy and l.proxy.status == 'ATIVO' and l.is_session_valid]
 
     if not lobbies_para_rodar:
-        flash('Nenhum lobby ativo com conexão proxy e sessão válida disponível para iniciar.', 'warning')
+        if request.headers.get('X-Requested-With') == 'XMLHttpRequest':
+            return jsonify({'success': False, 'message': 'Nenhum lobby elegível disponível.'})
+        flash('Nenhum lobby com conexão proxy e sessão válida disponível para iniciar.', 'warning')
         return redirect(url_for('main.lobbies_list'))
 
     iniciados = 0
     for lobby in lobbies_para_rodar:
+        lobby.status = 'ATIVO'
         if not BotManager.is_running(lobby.id):
             BotManager.start_lobby(lobby.id, app)
             iniciados += 1
 
+    db.session.commit()
+
+    if request.headers.get('X-Requested-With') == 'XMLHttpRequest':
+        return jsonify({'success': True, 'message': f'{iniciados} navegador(es) iniciado(s) com sucesso.'})
+
     if iniciados > 0:
         flash(f'{iniciados} navegador(es) iniciado(s) com sucesso.', 'success')
     else:
-        flash('Todos os lobbies ativos já possuem navegadores em execução.', 'info')
+        flash('Todos os lobbies elegíveis já estão em execução.', 'info')
 
     return redirect(url_for('main.lobbies_list'))
 
@@ -425,14 +424,21 @@ def start_bot():
 @login_required
 @user_active_required
 def stop_all_bots():
-    """Disjuntor Geral: Desligar Todos os navegadores em execução do usuário."""
+    """Disjuntor Geral: Desligar Todos os navegadores em execução do usuário instantaneamente."""
     lobbies = Lobby.query.filter_by(user_id=current_user.id).all()
 
     encerrados = 0
     for lobby in lobbies:
+        # Altera o status no banco para INATIVO para forçar o encerramento em tempo real
+        lobby.status = 'INATIVO'
         if BotManager.is_running(lobby.id):
             BotManager.stop_lobby(lobby.id)
             encerrados += 1
+
+    db.session.commit()
+
+    if request.headers.get('X-Requested-With') == 'XMLHttpRequest':
+        return jsonify({'success': True, 'message': f'{encerrados} navegador(es) encerrado(s) com sucesso.'})
 
     if encerrados > 0:
         flash(f'{encerrados} navegador(es) encerrado(s) com sucesso.', 'success')
@@ -442,11 +448,15 @@ def stop_all_bots():
     return redirect(url_for('main.lobbies_list'))
 
 
+# ==========================================
+# ROTAS DE POLLING E CONTROLE INDIVIDUAL DE SERVIDORES
+# ==========================================
+
 @main_bp.route('/api/lobbies/status', methods=['GET'])
 @login_required
 @user_active_required
 def get_lobbies_status():
-    """Retorna o status e a lista detalhada de contas/mundos em JSON."""
+    """Retorna o status atualizado, contagem e detalhes de contas com dias sem login e automação."""
     lobbies = Lobby.query.filter_by(user_id=current_user.id).all()
 
     status_data = {}
@@ -454,7 +464,6 @@ def get_lobbies_status():
         contas_list = []
         if lobby.contas:
             for conta in lobby.contas:
-                # Aplica a tradução do nome do mundo caso tenha o utilitário
                 nome_mundo = conta.servidor
                 try:
                     from app.bot.utils.worlds import WORLD_NAMES
@@ -468,7 +477,10 @@ def get_lobbies_status():
                     'nome_mundo': nome_mundo,
                     'pais': conta.pais.upper() if conta.pais else '',
                     'nome_usuario': conta.nome_usuario,
-                    'ativo': conta.ativo
+                    'ativo': conta.ativo,
+                    'automacao_ativa': conta.automacao_ativa,
+                    'dias_sem_login': conta.dias_sem_login,
+                    'ultimo_login': conta.ultimo_login.strftime('%d/%m/%Y %H:%M') if conta.ultimo_login else None
                 })
 
         status_data[lobby.id] = {
@@ -476,7 +488,28 @@ def get_lobbies_status():
             'has_session': lobby.is_session_valid,
             'is_running': BotManager.is_running(lobby.id),
             'accounts_count': len(contas_list),
-            'accounts': contas_list  # <--- Lista de contas enviada no JSON
+            'accounts': contas_list
         }
 
     return jsonify(status_data)
+
+
+@main_bp.route('/contas/<int:conta_id>/toggle-automacao', methods=['POST'])
+@login_required
+@user_active_required
+def toggle_conta_automacao(conta_id):
+    """Alterna o estado de automacao_ativa (True/False) de um servidor específico do usuário."""
+    conta = Conta.query.join(Lobby).filter(
+        Conta.id == conta_id,
+        Lobby.user_id == current_user.id
+    ).first_or_404()
+
+    conta.automacao_ativa = not conta.automacao_ativa
+    db.session.commit()
+
+    estado_str = "ativada" if conta.automacao_ativa else "desativada"
+    return jsonify({
+        'success': True,
+        'automacao_ativa': conta.automacao_ativa,
+        'message': f'Automação {estado_str} para o mundo {conta.servidor} ({conta.nome_usuario}).'
+    })

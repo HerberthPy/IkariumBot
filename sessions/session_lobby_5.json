@@ -1,0 +1,55 @@
+{
+    "cookies": [
+        {
+            "name": "GTPINGRESSCOOKIE",
+            "value": "664239553bcf13eee7fa5c64b27df7ef",
+            "domain": ".gameforge.com",
+            "path": "/",
+            "expires": 1795258468.077799,
+            "httpOnly": true,
+            "secure": true,
+            "sameSite": "Strict"
+        },
+        {
+            "name": "__cf_bm",
+            "value": "XhxhkIon0i5dzrEHCBhxYeb6SIHHd6e_vtIHwmHRYww-1792666447.8333254-1.0.1.1-7leklQMPDfC2ptCCEI3__iFbxTQKbnTRg9OSsq5DBg14UPVYk1rfaklTyMl0lrW29oZLy5AAcZxhJ17.pLAb.zQpFyfNVbMPjRScpaa_MP9tu1uQai_pUEgxcXaNvam8",
+            "domain": ".gameforge.com",
+            "path": "/",
+            "expires": 1792668247.122032,
+            "httpOnly": true,
+            "secure": true,
+            "sameSite": "None"
+        },
+        {
+            "name": "pc_idt",
+            "value": "AEFxLUIeRqlXgdkeJddjDRkuEJDyET4WUduIAaU5LS42ds4oi3q8GEuKftUdbrubFEO0O9zWc7rcjY7BzpKilf1GgKd00x9ifIIoIEm-T2IcT8vRUkUlSq869X8o-RefFmHiZ7udsibVtdL6h4bnDKGmjwKPlkSeVN5guA",
+            "domain": ".gameforge.com",
+            "path": "/",
+            "expires": 1824202467.284836,
+            "httpOnly": true,
+            "secure": false,
+            "sameSite": "Lax"
+        },
+        {
+            "name": "gf-token-production",
+            "value": "3bbcc15c-b544-491f-9ed7-08bdea70fff7",
+            "domain": ".gameforge.com",
+            "path": "/",
+            "expires": 1800442465.905927,
+            "httpOnly": false,
+            "secure": false,
+            "sameSite": "Lax"
+        },
+        {
+            "name": "gf_pz_token",
+            "value": "58519c99-1313-411e-8ce7-543b2d49225c",
+            "domain": ".gameforge.com",
+            "path": "/",
+            "expires": 1800442468.077692,
+            "httpOnly": false,
+            "secure": false,
+            "sameSite": "Lax"
+        }
+    ],
+    "local_storage": "{\"x-game\":\"wdxdbrgn1hf0axvvesak0eebfmz\",\"hasLoggedIn\":\"true\",\"x-vec\":\"m[p |\\\\c@w*rwyUfLb;i_%ekfS$W>U'y9tLZ^P+^E|X`qHDK<T;jk\\\\CdYR:7a'si4Wg\\\\-1>LkT4UU_a,HYRXcdBfb09t#trBX{i1+ 1792666451577\"}"
+}

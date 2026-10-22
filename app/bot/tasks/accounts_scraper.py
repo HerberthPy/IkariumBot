@@ -3,7 +3,7 @@
 import time
 from flask import current_app
 from app import db
-from app.models import Lobby, Conta
+from app.models import Lobby, Conta, get_brasilia_time
 
 
 class AccountsScraperTask:
@@ -42,6 +42,7 @@ class AccountsScraperTask:
 
                 novas_inseridas = 0
                 atualizadas = 0
+                agora_brasilia = get_brasilia_time()
 
                 for acc in captured_accounts:
                     servidor_nome = acc.get("servidor")
@@ -66,13 +67,16 @@ class AccountsScraperTask:
                             pais=acc.get("pais", "pt"),
                             nome_usuario=nome_user,
                             email=lobby_db.email,
-                            ativo=acc.get("ativo", True)
+                            ativo=acc.get("ativo", True),
+                            automacao_ativa=True,
+                            ultimo_login=agora_brasilia
                         )
                         db.session.add(nova_conta)
                         novas_inseridas += 1
                         print(f"[Task Scraper DB] Inserindo nova conta: {nome_user} @ {servidor_nome}")
                     else:
                         conta_existente.ativo = acc.get("ativo", True)
+                        conta_existente.ultimo_login = agora_brasilia
                         if acc.get("gameforge_account_id"):
                             conta_existente.gameforge_account_id = acc.get("gameforge_account_id")
                         atualizadas += 1

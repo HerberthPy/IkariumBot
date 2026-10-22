@@ -8,6 +8,7 @@ from app.models import Lobby
 from app.bot.auth import AuthManager
 from app.bot.network import NetworkInterceptor
 from app.bot.tasks.accounts_scraper import AccountsScraperTask
+from app.bot.tasks.server_login import ServerLoginTask
 
 
 class BotManager:
@@ -55,27 +56,40 @@ class BotManager:
                 lobby.has_session = True
                 db.session.commit()
 
-                # 2. Instancia a lista mutável de contas compartilhada por referência
-                captured_accounts = []
-
-                # 3. Registra a escuta do evento da API Gameforge na página
-                NetworkInterceptor.listen_accounts_api(page, captured_accounts)
-
-                # 4. Executa a tarefa de scraping e sincronização no BD
-                AccountsScraperTask.run(lobby, page, captured_accounts)
-
                 print(f"[BotManager] Lobby '{lobby.nickname}' rodando tarefas ativas...")
 
+                # Loop contínuo de vida útil da instância Playwright
                 while not stop_event.is_set():
-                    time.sleep(0.5)
+                    # Reabre a sessão para verificar o status atualizado do Lobby no Banco de Dados
+                    lobby_atualizado = db.session.get(Lobby, lobby_id)
+
+                    # Se o Lobby foi inativado pelo usuário, encerra o loop da thread
+                    if not lobby_atualizado or lobby_atualizado.status != 'ATIVO':
+                        print(f"[BotManager] Lobby '{lobby.nickname}' inativado pelo usuário. Encerrando automação...")
+                        break
+
+                    # 2. Instancia a lista mutável de contas para captura via Network Interceptor
+                    captured_accounts = []
+                    NetworkInterceptor.listen_accounts_api(page, captured_accounts)
+
+                    # 3. TASK 1: Varrida/Scraping contínuo para manter os servidores atualizados no BD
+                    AccountsScraperTask.run(lobby_atualizado, page, captured_accounts)
+
+                    # 4. TASK 2: Automação e Login nos servidores individuais com automação ativa
+                    ServerLoginTask.run(lobby_atualizado, page)
+
+                    # Intervalo entre os ciclos de verificação/automação (ajustável conforme a necessidade)
+                    time.sleep(5.0)
 
             except Exception as e:
                 print(f"[BotManager ERRO] Falha no Lobby #{lobby_id}: {e}")
 
                 # Se a falha foi por sessão expirada/ausente, atualiza a flag no banco
-                lobby.has_session = lobby.is_session_valid
-                lobby.status = 'ERRO'
-                db.session.commit()
+                lobby_atual = db.session.get(Lobby, lobby_id)
+                if lobby_atual:
+                    lobby_atual.has_session = lobby_atual.is_session_valid
+                    lobby_atual.status = 'ERRO'
+                    db.session.commit()
 
             finally:
                 print(f"[BotManager] Encerrando instância do Lobby #{lobby_id}...")
