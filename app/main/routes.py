@@ -179,7 +179,7 @@ def create_lobby():
             email=email,
             proxy_id=proxy.id,
             user_id=current_user.id,
-            status='ATIVO'
+            status='INATIVO'
         )
         novo_lobby.set_password(password)
 
@@ -187,10 +187,10 @@ def create_lobby():
         db.session.commit()
 
         # Inicia a navegação imediatamente para o lobby recém-criado
-        app = current_app._get_current_object()
-        BotManager.start_lobby(novo_lobby.id, app)
+        # app = current_app._get_current_object()
+        # BotManager.start_lobby(novo_lobby.id, app)
 
-        flash("Lobby cadastrado e automação iniciada com sucesso!", "success")
+        flash("Lobby cadastrado!", "success")
         return redirect(url_for('main.lobbies_list'))
 
     return render_template('main/create_lobby.html', user_proxies=proxies_livres)
