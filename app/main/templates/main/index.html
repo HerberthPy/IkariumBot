@@ -73,7 +73,7 @@
 
     <!-- NAVEGAÇÃO PRINCIPAL (ABAS DE MÓDULOS) -->
     <div class="card border-0 shadow-sm rounded-4 p-2 mb-4 bg-body-tertiary">
-      <div class="d-flex flex-row flex-wrap gap-2" id="userTabNav">
+      <div class="d-flex flex-row flex-wrap gap-2 align-items-center" id="userTabNav">
         <button class="btn btn-primary rounded-3 px-4 py-2 fw-semibold d-flex align-items-center tab-btn active" onclick="switchUserTab('lobbies-pane', this)">
           <i class="bi bi-controller me-2"></i>Meus Lobbies
         </button>
@@ -83,6 +83,11 @@
         <button class="btn btn-outline-secondary rounded-3 px-4 py-2 fw-semibold d-flex align-items-center disabled opacity-50" disabled>
           <i class="bi bi-plus-circle me-2"></i>Módulo Futuro <span class="badge bg-secondary ms-2 extra-small">Em breve</span>
         </button>
+
+        <!-- CONTAINER DINÂMICO DE ABAS DE CONTAS ABERTAS -->
+        <div id="dynamic-account-tabs" class="d-flex flex-row flex-wrap gap-2 ms-lg-auto border-start ps-lg-3 pt-2 pt-lg-0">
+          <!-- As abas das contas abertas aparecerão aqui dinamicamente -->
+        </div>
       </div>
     </div>
 
@@ -246,12 +251,20 @@
                                   {% endif %}
                                 </td>
                                 <td class="pe-3 py-2 text-end">
-                                  <button class="btn btn-xs {{ 'btn-outline-danger' if conta.automacao_ativa else 'btn-outline-success' }} rounded-3 px-2 py-1 fw-semibold extra-small"
-                                          onclick="toggleAutomacaoConta({{ conta.id }})"
-                                          title="{{ 'Pausar Automação' if conta.automacao_ativa else 'Ativar Automação' }}">
-                                    <i class="bi {{ 'bi-pause-circle-fill' if conta.automacao_ativa else 'bi-play-circle-fill' }} me-1"></i>
-                                    {{ 'Pausar' if conta.automacao_ativa else 'Ligar' }}
-                                  </button>
+                                  <!-- BOTÃO ENTRAR (DESABILITADO SE INATIVO/BLOQUEADO) -->
+                                  {% if conta.ativo %}
+                                    <button class="btn btn-xs btn-outline-success rounded-3 px-2 py-1 fw-semibold extra-small"
+                                            onclick="abrirAbaConta({{ conta.id }}, '{{ conta.servidor }} - {{ conta.nome_usuario }}')"
+                                            title="Entrar na Conta">
+                                      <i class="bi bi-box-arrow-in-right me-1"></i> Entrar
+                                    </button>
+                                  {% else %}
+                                    <button class="btn btn-xs btn-outline-secondary rounded-3 px-2 py-1 fw-semibold extra-small opacity-50"
+                                            disabled
+                                            title="Conta Bloqueada / Inativa">
+                                      <i class="bi bi-box-arrow-in-right me-1"></i> Entrar
+                                    </button>
+                                  {% endif %}
                                 </td>
                               </tr>
                               {% endfor %}
@@ -444,7 +457,7 @@
                       </span>
                     {% endfor %}
                   {% else %}
-                    <span class="badge bg-success-subtle border rounded-pill px-3 py-1.5 fw-semibold">Disponível</span>
+                    <span class="badge bg-success-subtle border rounded-pill px-3 py-1 fw-semibold">Disponível</span>
                   {% endif %}
                 </td>
               </tr>
@@ -463,6 +476,11 @@
         {% endif %}
       </div>
     </div> <!-- FIM DA ABA PROXIES -->
+
+    <!-- CONTAINER ONDE SERÃO RENDERIZADAS AS ABAS DE CONTA (CONTEÚDO) -->
+    <div id="dynamic-account-panes">
+      <!-- Os conteúdos das abas de contas abertas aparecerão aqui -->
+    </div>
 
   </main>
 </div>
@@ -524,6 +542,102 @@
     });
     clickedBtn.classList.remove('btn-outline-secondary');
     clickedBtn.classList.add('btn-primary', 'active');
+  }
+
+  // --------------------------------------------------------------------------
+  // 1.1 SISTEMA DE ABAS DINÂMICAS DE CONTAS ("ENTRAR")
+  // --------------------------------------------------------------------------
+  function abrirAbaConta(contaId, contaNome) {
+    const tabId = `account-tab-${contaId}`;
+    const paneId = `account-pane-${contaId}`;
+
+    const existingTab = document.getElementById(tabId);
+
+    // Se a aba já existe, apenas ativa-la e redirecionar para ela
+    if (existingTab) {
+      existingTab.click();
+      return;
+    }
+
+    // Ocultar todas as outras abas/painéis principais e customizados
+    document.querySelectorAll('.tab-pane-custom').forEach(pane => pane.classList.add('d-none'));
+    document.querySelectorAll('.tab-pane-account').forEach(pane => pane.classList.add('d-none'));
+
+    document.querySelectorAll('.tab-btn, .account-tab-btn').forEach(btn => {
+      btn.classList.remove('btn-primary', 'active');
+      btn.classList.add('btn-outline-secondary');
+    });
+
+    // Criar o botão da aba na barra superior
+    const tabsContainer = document.getElementById('dynamic-account-tabs');
+    const newTabBtn = document.createElement('button');
+    newTabBtn.id = tabId;
+    newTabBtn.className = 'btn btn-primary rounded-3 px-3 py-2 fw-semibold d-flex align-items-center gap-2 account-tab-btn active';
+    newTabBtn.innerHTML = `
+      <i class="bi bi-display"></i>
+      <span>${contaNome}</span>
+      <span class="badge bg-light text-dark rounded-circle p-1 ms-1" style="font-size: 0.6rem;" onclick="fecharAbaConta(event, ${contaId})" title="Fechar Aba">
+        <i class="bi bi-x fw-bold"></i>
+      </span>
+    `;
+    newTabBtn.onclick = function() {
+      focarAbaConta(paneId, this);
+    };
+    tabsContainer.appendChild(newTabBtn);
+
+    // Criar o painel de conteúdo da aba
+    const panesContainer = document.getElementById('dynamic-account-panes');
+    const newPane = document.createElement('div');
+    newPane.id = paneId;
+    newPane.className = 'tab-pane-account tab-pane-custom';
+    newPane.innerHTML = `
+      <div class="card border-0 shadow-sm rounded-4 p-5 text-center bg-body-tertiary">
+        <div class="card-body py-5">
+          <i class="bi bi-gear-wide-connected fs-1 text-primary mb-3 d-block"></i>
+          <h4 class="fw-bold mb-2">${contaNome}</h4>
+          <p class="text-secondary mb-0">Em desenvolvimento</p>
+        </div>
+      </div>
+    `;
+    panesContainer.appendChild(newPane);
+  }
+
+  function focarAbaConta(paneId, clickedBtn) {
+    document.querySelectorAll('.tab-pane-custom').forEach(pane => pane.classList.add('d-none'));
+    document.querySelectorAll('.tab-pane-account').forEach(pane => pane.classList.add('d-none'));
+
+    const targetPane = document.getElementById(paneId);
+    if (targetPane) targetPane.classList.remove('d-none');
+
+    document.querySelectorAll('.tab-btn, .account-tab-btn').forEach(btn => {
+      btn.classList.remove('btn-primary', 'active');
+      btn.classList.add('btn-outline-secondary');
+    });
+    clickedBtn.classList.remove('btn-outline-secondary');
+    clickedBtn.classList.add('btn-primary', 'active');
+  }
+
+  function fecharAbaConta(event, contaId) {
+    event.stopPropagation(); // Evita disparar o clique do botão da aba
+
+    const tabId = `account-tab-${contaId}`;
+    const paneId = `account-pane-${contaId}`;
+
+    const tabBtn = document.getElementById(tabId);
+    const pane = document.getElementById(paneId);
+
+    const estavaAtiva = tabBtn && tabBtn.classList.contains('active');
+
+    if (tabBtn) tabBtn.remove();
+    if (pane) pane.remove();
+
+    // Se a aba fechada era a ativa, retorna para a aba padrão "Meus Lobbies"
+    if (estavaAtiva) {
+      const defaultTabBtn = document.querySelector('#userTabNav .tab-btn');
+      if (defaultTabBtn) {
+        defaultTabBtn.click();
+      }
+    }
   }
 
   // --------------------------------------------------------------------------
@@ -597,25 +711,6 @@
         }
       }
     }
-  }
-
-  // --------------------------------------------------------------------------
-  // 4. ATIVAR/DESATIVAR AUTOMAÇÃO DA CONTA INDIVIDUAL (AÇÃO POR CLIQUE)
-  // --------------------------------------------------------------------------
-  function toggleAutomacaoConta(contaId) {
-    fetch(`/contas/${contaId}/toggle-automacao`, {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' }
-    })
-    .then(res => res.json())
-    .then(data => {
-      if (data.success) {
-        window.location.reload();
-      } else {
-        alert(data.message || 'Erro ao alterar estado da automação.');
-      }
-    })
-    .catch(err => console.error('Erro ao alternar automação da conta:', err));
   }
 
   // --------------------------------------------------------------------------
