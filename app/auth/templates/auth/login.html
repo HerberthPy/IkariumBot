@@ -80,12 +80,15 @@
 
         </form>
 
-        <!-- Link para Criar Conta -->
+        <!-- Link para Criar Conta e Acesso Admin -->
         <div class="text-center mt-3 pt-3 border-top">
-          <p class="text-secondary small mb-0">
+          <p class="text-secondary small mb-2">
             Ainda não tem uma conta?
             <a href="{{ url_for('auth.register') }}" class="text-primary text-decoration-none fw-bold">Criar conta</a>
           </p>
+          <a href="{{ url_for('auth.admin_login') }}" class="text-muted text-decoration-none extra-small" style="font-size: 0.8rem;">
+            <i class="bi bi-shield-lock me-1"></i> Acesso Administrativo
+          </a>
         </div>
 
       </div>

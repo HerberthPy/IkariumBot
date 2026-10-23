@@ -1,0 +1,114 @@
+{% extends "base.html" %}
+
+{% block title %}Painel Administrativo - IkariumBot{% endblock %}
+
+{% block content %}
+<main class="container d-flex align-items-center min-vh-100 py-5">
+  <div class="row justify-content-center w-100 m-0">
+    <div class="col-12 col-sm-10 col-md-8 col-lg-5 col-xl-4">
+
+      <!-- Card Principal Restrito -->
+      <div class="card border-0 shadow-lg rounded-4 p-4 p-sm-5 bg-white">
+
+        <!-- Header / Logo Admin -->
+        <div class="text-center mb-4">
+          <div class="bg-dark text-white d-inline-flex align-items-center justify-content-center rounded-circle mb-3 shadow-sm" style="width: 56px; height: 56px;">
+            <i class="bi bi-shield-lock-fill fs-3 text-warning"></i>
+          </div>
+          <h1 class="h4 fw-bold mb-1">IkariumBot <span class="badge bg-danger fs-6 align-middle">Admin</span></h1>
+          <p class="text-secondary small">Acesso exclusivo ao painel de administração</p>
+        </div>
+
+        <!-- Mensagens Flash de Alerta -->
+        {% with messages = get_flashed_messages(with_categories=true) %}
+          {% if messages %}
+            {% for category, message in messages %}
+              <div class="alert alert-{{ 'danger' if category in ['error', 'danger'] else category }} alert-dismissible fade show small" role="alert">
+                {{ message }}
+                <button type="button" class="btn-close" data-bs-dismiss="alert" aria-label="Close"></button>
+              </div>
+            {% endfor %}
+          {% endif %}
+        {% endwith %}
+
+        <!-- Formulário Admin -->
+        <form action="{{ url_for('auth.admin_login') }}" method="POST">
+
+          <div class="form-floating mb-3">
+            <input
+              type="email"
+              class="form-control rounded-3"
+              id="email"
+              name="email"
+              placeholder="admin@exemplo.com"
+              required
+            >
+            <label for="email">E-mail Administrativo</label>
+          </div>
+
+          <!-- Campo de Senha -->
+          <div class="input-group mb-3">
+            <div class="form-floating flex-grow-1">
+              <input
+                type="password"
+                class="form-control rounded-start-3"
+                id="password"
+                name="password"
+                placeholder="Senha"
+                required
+              >
+              <label for="password">Senha</label>
+            </div>
+            <button class="btn btn-outline-secondary px-3 border" type="button" onclick="togglePasswordVisibility('password', 'togglePasswordIcon')">
+              <i class="bi bi-eye" id="togglePasswordIcon"></i>
+            </button>
+          </div>
+
+          <div class="d-flex justify-content-between align-items-center mb-4 small">
+            <div class="form-check">
+              <input class="form-check-input" type="checkbox" id="remember" name="remember">
+              <label class="form-check-label text-secondary" for="remember">
+                Manter conectado
+              </label>
+            </div>
+            <a href="{{ url_for('auth.forgot_password') }}" class="text-secondary text-decoration-none small">Esqueceu a senha?</a>
+          </div>
+
+          <button type="submit" class="btn btn-dark w-100 py-2.5 rounded-3 fw-semibold shadow-sm mb-2">
+            Acessar Painel <i class="bi bi-arrow-right-short ms-1"></i>
+          </button>
+
+        </form>
+
+        <!-- Voltar para o Portal do Usuário -->
+        <div class="text-center mt-3 pt-3 border-top">
+          <a href="{{ url_for('auth.login') }}" class="text-secondary text-decoration-none small">
+            <i class="bi bi-arrow-left me-1"></i> Ir para o login de usuários
+          </a>
+        </div>
+
+      </div>
+
+    </div>
+  </div>
+</main>
+{% endblock %}
+
+{% block extra_js %}
+<script>
+function togglePasswordVisibility(inputId, iconId) {
+    const input = document.getElementById(inputId);
+    const icon = document.getElementById(iconId);
+
+    if (input.type === 'password') {
+        input.type = 'text';
+        icon.classList.remove('bi-eye');
+        icon.classList.add('bi-eye-slash');
+    } else {
+        input.type = 'password';
+        icon.classList.remove('bi-eye-slash');
+        icon.classList.add('bi-eye');
+    }
+}
+</script>
+{% endblock %}

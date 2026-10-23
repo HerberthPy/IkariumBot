@@ -128,7 +128,6 @@ class Lobby(db.Model):
     id = db.Column(db.Integer, primary_key=True)
     nickname = db.Column(db.String(100), nullable=False)
     email = db.Column(db.String(120), nullable=False)
-    password_encrypted = db.Column(db.String(255), nullable=False)
     status = db.Column(db.String(20), default='ATIVO')
     has_session = db.Column(db.Boolean, default=False)  # Indica se os cookies/storage_state foram capturados
     created_at = db.Column(db.DateTime, default=get_brasilia_time)
@@ -146,22 +145,6 @@ class Lobby(db.Model):
         if self.proxy and self.proxy.country:
             return self.proxy.country
         return "N/A"
-
-    def set_password(self, password):
-        """Criptografa a senha do lobby antes de salvar."""
-        if password:
-            cipher = get_cipher()
-            self.password_encrypted = cipher.encrypt(password.encode('utf-8')).decode('utf-8')
-
-    def get_password(self):
-        """Descriptografa a senha para uso do bot ou exibição."""
-        if not self.password_encrypted:
-            return ""
-        try:
-            cipher = get_cipher()
-            return cipher.decrypt(self.password_encrypted.encode('utf-8')).decode('utf-8')
-        except (InvalidToken, Exception):
-            return self.password_encrypted
 
     def get_session_path(self):
         """Retorna o caminho absoluto do arquivo JSON de sessão do Playwright para este Lobby."""
@@ -188,7 +171,6 @@ class Conta(db.Model):
     email = db.Column(db.String(120), nullable=False)  # E-mail associado
     ativo = db.Column(db.Boolean, default=True)  # Status da conta na Gameforge
 
-    # NOVOS CAMPOS PARA CONTROLE DE AUTOMAÇÃO E REGISTRO DE ACESSO
     automacao_ativa = db.Column(db.Boolean, default=False, nullable=False)  # Se a automação deve rodar nesta conta
     ultimo_login = db.Column(db.DateTime, nullable=True)  # Data e hora do último acesso pelo bot
 

@@ -2,6 +2,7 @@
 
 import os
 import json
+import base64
 from flask import render_template, request, redirect, url_for, flash, current_app, jsonify
 from flask_login import login_required, current_user
 from app import db
@@ -10,7 +11,6 @@ from app.main import main_bp
 from app.main.tasks import sync_webshare_job
 from app.main.decorators import admin_required, user_active_required
 from app.bot import BotManager
-from app.bot.auth import AuthManager
 
 
 @main_bp.route('/')
@@ -18,21 +18,47 @@ from app.bot.auth import AuthManager
 @login_required
 @user_active_required
 def index():
-    return render_template('main/index.html', user=current_user)
+    """Painel do Usuário: Carrega Lobbies e Proxies unificados em abas."""
+    if current_user.is_admin == 1:
+        return redirect(url_for('main.admin_dashboard'))
+
+    lobbies = Lobby.query.filter_by(user_id=current_user.id).all()
+
+    for lobby in lobbies:
+        lobby.is_running = BotManager.is_running(lobby.id)
+
+    # Carrega todas as proxies atribuídas ao usuário
+    user_proxies_list = Proxy.query.filter_by(user_id=current_user.id).all()
+
+    return render_template(
+        'main/index.html',
+        user=current_user,
+        lobbies=lobbies,
+        proxies=user_proxies_list,
+        user_proxies=user_proxies_list
+    )
 
 
 # ==========================================
 # ROTAS ADMINISTRATIVAS
 # ==========================================
 
+@main_bp.route('/admin/dashboard', methods=['GET'])
+@login_required
+@admin_required
+def admin_dashboard():
+    """Painel Único do Admin: Carrega proxies e usuários em abas."""
+    proxies = Proxy.query.all()
+    users = User.query.order_by(User.created_at.desc()).all()
+    return render_template('main/dashboard.html', proxies=proxies, users=users)
+
+
 @main_bp.route('/admin/proxies', methods=['GET'])
 @login_required
 @admin_required
 def admin_proxies():
-    """Painel do Admin: Lista todas as proxies do pool (livres e atribuídas)."""
-    proxies = Proxy.query.all()
-    users = User.query.filter_by(is_admin=0, is_active=True).all()
-    return render_template('main/admin_proxies.html', proxies=proxies, users=users)
+    """Redireciona para o dashboard unificado por abas do admin."""
+    return redirect(url_for('main.admin_dashboard'))
 
 
 @main_bp.route('/admin/proxies/<int:proxy_id>/assign', methods=['POST'])
@@ -47,7 +73,7 @@ def assign_proxy(proxy_id):
         user = User.query.get(user_id)
         if not user:
             flash('Usuário selecionado não encontrado.', 'danger')
-            return redirect(url_for('main.admin_proxies'))
+            return redirect(url_for('main.admin_dashboard'))
 
         proxy.user_id = user.id
         flash(f'Proxy #{proxy.id} atribuída com sucesso ao usuário {user.full_name}!', 'success')
@@ -56,7 +82,7 @@ def assign_proxy(proxy_id):
         flash(f'Proxy #{proxy.id} devolvida ao Pool Global.', 'info')
 
     db.session.commit()
-    return redirect(url_for('main.admin_proxies'))
+    return redirect(url_for('main.admin_dashboard'))
 
 
 @main_bp.route('/admin/proxies/<int:proxy_id>/unassign', methods=['POST'])
@@ -69,7 +95,7 @@ def unassign_proxy(proxy_id):
     db.session.commit()
 
     flash(f'Proxy #{proxy.id} devolvida ao Pool Global com sucesso.', 'info')
-    return redirect(url_for('main.admin_proxies'))
+    return redirect(url_for('main.admin_dashboard'))
 
 
 @main_bp.route('/admin/proxies/sincronizar', methods=['POST', 'GET'])
@@ -84,16 +110,15 @@ def sync_proxies():
     except Exception as e:
         flash(f'Erro ao sincronizar proxies: {str(e)}', 'danger')
 
-    return redirect(url_for('main.admin_proxies'))
+    return redirect(url_for('main.admin_dashboard'))
 
 
 @main_bp.route('/admin/users', methods=['GET'])
 @login_required
 @admin_required
 def admin_users():
-    """Painel do Admin: Lista todos os usuários e permite alteração de status."""
-    users = User.query.order_by(User.created_at.desc()).all()
-    return render_template('main/admin_users.html', users=users)
+    """Redireciona para o dashboard unificado por abas do admin."""
+    return redirect(url_for('main.admin_dashboard'))
 
 
 @main_bp.route('/admin/users/<int:user_id>/toggle-status', methods=['POST'])
@@ -103,7 +128,7 @@ def toggle_user_status(user_id):
     """Admin ativa ou desativa a conta de um usuário."""
     if user_id == current_user.id:
         flash('Você não pode desativar sua própria conta de administrador.', 'warning')
-        return redirect(url_for('main.admin_users'))
+        return redirect(url_for('main.admin_dashboard'))
 
     user = User.query.get_or_404(user_id)
     user.is_active = not user.is_active
@@ -111,89 +136,85 @@ def toggle_user_status(user_id):
 
     status_str = "ativado" if user.is_active else "desativado"
     flash(f'Usuário {user.full_name} foi {status_str} com sucesso!', 'success')
-    return redirect(url_for('main.admin_users'))
+    return redirect(url_for('main.admin_dashboard'))
 
 
 # ==========================================
-# ROTAS DO USUÁRIO - VISÃO DE PROXIES
+# ROTAS DO USUÁRIO - VISÃO DE PROXIES E LOBBIES
 # ==========================================
 
 @main_bp.route('/user/proxies', methods=['GET'])
 @login_required
 @user_active_required
 def user_proxies():
-    """Visão do Usuário: Lista apenas as proxies atribuídas a ele sem expor credenciais."""
-    proxies = Proxy.query.filter_by(user_id=current_user.id, status='ATIVO').all()
-    return render_template('main/user_proxies.html', proxies=proxies)
+    """Redireciona para a página principal unificada do usuário."""
+    return redirect(url_for('main.index'))
 
-
-# ==========================================
-# ROTAS DO USUÁRIO - GERENCIAMENTO DE LOBBIES E AUTOMAÇÃO
-# ==========================================
 
 @main_bp.route('/lobbies', methods=['GET'])
 @login_required
 @user_active_required
 def lobbies_list():
-    """Lista todos os lobbies pertencentes ao usuário logado."""
-    lobbies = Lobby.query.filter_by(user_id=current_user.id).all()
-
-    for lobby in lobbies:
-        if hasattr(lobby, 'get_password'):
-            lobby.decrypted_password = lobby.get_password()
-        # Marca dinamicamente no objeto se a instância Playwright do lobby está rodando
-        lobby.is_running = BotManager.is_running(lobby.id)
-
-    user_proxies_list = Proxy.query.filter_by(user_id=current_user.id, status='ATIVO').all()
-
-    return render_template('main/lobbies_list.html', lobbies=lobbies, user_proxies=user_proxies_list)
+    """Redireciona para a página principal unificada do usuário."""
+    return redirect(url_for('main.index'))
 
 
 @main_bp.route('/lobbies/novo', methods=['GET', 'POST'])
 @login_required
 @user_active_required
 def create_lobby():
-    """Cadastro de um novo lobby com validação de limite de proxies."""
-    user_proxies_list = Proxy.query.filter_by(user_id=current_user.id, status='ATIVO').all()
+    """Cadastro de um novo lobby recebendo o Código de Sessão importado."""
+    user_proxies_list = Proxy.query.filter_by(user_id=current_user.id).all()
     proxies_livres = [p for p in user_proxies_list if not p.is_in_use]
 
     if request.method == 'POST':
         nickname = request.form.get('nickname', '').strip()
         email = request.form.get('email', '').strip().lower()
-        password = request.form.get('password')
         proxy_id = request.form.get('proxy_id', type=int)
+        session_code = request.form.get('session_code', '').strip()
 
         if not current_user.can_create_lobby:
-            flash(
-                "Você atingiu o limite de Lobbies referente às suas proxies atribuídas.",
-                "warning"
-            )
-            return redirect(url_for('main.lobbies_list'))
+            flash("Você atingiu o limite de Lobbies referente às suas proxies atribuídas.", "warning")
+            return redirect(url_for('main.index'))
 
-        proxy = Proxy.query.filter_by(id=proxy_id, user_id=current_user.id, status='ATIVO').first()
-        if not proxy:
-            flash("Proxy selecionada inválida ou não pertence à sua conta.", "danger")
-            return redirect(url_for('main.lobbies_list'))
+        proxy = Proxy.query.filter_by(id=proxy_id, user_id=current_user.id).first()
+        if not proxy or proxy.is_in_use:
+            flash("Proxy selecionada inválida ou já vinculada a outro lobby.", "danger")
+            return redirect(url_for('main.index'))
 
-        if proxy.is_in_use:
-            flash("A Proxy selecionada já está vinculada a outro lobby.", "danger")
-            return redirect(url_for('main.lobbies_list'))
+        if not session_code:
+            flash("O código da sessão é obrigatório para cadastrar o lobby.", "danger")
+            return redirect(url_for('main.index'))
 
+        # Processa e decodifica a sessão Base64 extraída do Bookmarklet
+        try:
+            raw_json = base64.b64decode(session_code).decode('utf-8')
+            session_data = json.loads(raw_json)
+        except Exception as err:
+            flash(f"Código de sessão inválido ou corrompido: {str(err)}", "danger")
+            return redirect(url_for('main.index'))
+
+        # Todo lobby cadastrado nasce ATIVO por padrão
         novo_lobby = Lobby(
             nickname=nickname,
             email=email,
             proxy_id=proxy.id,
             user_id=current_user.id,
-            status='INATIVO',
-            has_session=False
+            status='ATIVO',
+            has_session=True
         )
-        novo_lobby.set_password(password)
 
         db.session.add(novo_lobby)
         db.session.commit()
 
-        flash("Lobby cadastrado com sucesso! Agora realize a autenticação inicial para vincular a sessão.", "success")
-        return redirect(url_for('main.lobbies_list'))
+        # Salva o arquivo de sessão do Playwright
+        session_file = novo_lobby.get_session_path()
+        os.makedirs(os.path.dirname(session_file), exist_ok=True)
+        with open(session_file, "w", encoding="utf-8") as f:
+            json.dump(session_data, f, indent=4)
+
+        flash(f'Lobby "{nickname}" cadastrado com sucesso!', "success")
+        return redirect(url_for('main.index'))
 
     return render_template('main/create_lobby.html', user_proxies=proxies_livres)
 
@@ -202,47 +223,48 @@ def create_lobby():
 @login_required
 @user_active_required
 def edit_lobby(lobby_id):
-    """Edição de credenciais ou alteração de proxy de um lobby existente."""
+    """Edição de credenciais e atualização do Código de Sessão."""
     lobby = Lobby.query.filter_by(id=lobby_id, user_id=current_user.id).first_or_404()
 
     nickname = request.form.get('nickname', '').strip()
     email = request.form.get('email', '').strip().lower()
-    password = request.form.get('password', '').strip()
     proxy_id = request.form.get('proxy_id', type=int)
+    session_code = request.form.get('session_code', '').strip()
 
     if not nickname or not email:
         flash('Apelido e E-mail são obrigatórios.', 'danger')
-        return redirect(url_for('main.lobbies_list'))
+        return redirect(url_for('main.index'))
 
     if proxy_id and proxy_id != lobby.proxy_id:
-        novo_proxy = Proxy.query.filter_by(id=proxy_id, user_id=current_user.id, status='ATIVO').first()
-        if not novo_proxy:
-            flash('Proxy selecionada não encontrada ou indisponível.', 'danger')
-            return redirect(url_for('main.lobbies_list'))
+        novo_proxy = Proxy.query.filter_by(id=proxy_id, user_id=current_user.id).first()
+        if not novo_proxy or novo_proxy.is_in_use:
+            flash('Proxy selecionada inválida ou em uso por outro lobby.', 'danger')
+            return redirect(url_for('main.index'))
 
-        if novo_proxy.is_in_use:
-            flash('A nova Proxy selecionada já está em uso por outro lobby.', 'danger')
-            return redirect(url_for('main.lobbies_list'))
-
-        # Se alterou o proxy de um lobby que rodava, encerra a instância antiga
         BotManager.stop_lobby(lobby.id)
         lobby.proxy_id = novo_proxy.id
 
     lobby.nickname = nickname
     lobby.email = email
 
-    if password:
-        lobby.set_password(password)
+    # Atualiza a sessão caso um novo código tenha sido colado
+    if session_code:
+        try:
+            raw_json = base64.b64decode(session_code).decode('utf-8')
+            session_data = json.loads(raw_json)
+            session_file = lobby.get_session_path()
+            os.makedirs(os.path.dirname(session_file), exist_ok=True)
+            with open(session_file, "w", encoding="utf-8") as f:
+                json.dump(session_data, f, indent=4)
+            lobby.has_session = True
+            lobby.status = 'ATIVO'
+            flash('Sessão do Lobby atualizada com sucesso!', 'info')
+        except Exception as e:
+            flash(f'Erro ao atualizar o arquivo de sessão: {str(e)}', 'danger')
 
     db.session.commit()
-
-    # Se o lobby estiver ativo, reinicia a instância com as novas configurações
-    if lobby.status == 'ATIVO':
-        app = current_app._get_current_object()
-        BotManager.start_lobby(lobby.id, app)
-
     flash(f'Lobby "{lobby.nickname}" atualizado com sucesso!', 'success')
-    return redirect(url_for('main.lobbies_list'))
+    return redirect(url_for('main.index'))
 
 
 @main_bp.route('/lobbies/<int:lobby_id>/deletar', methods=['POST'])
@@ -255,10 +277,8 @@ def delete_lobby(lobby_id):
     try:
         nickname = lobby.nickname
 
-        # 1. Encerra a automação do Playwright se estiver rodando
         BotManager.stop_lobby(lobby.id)
 
-        # 2. Remove o arquivo JSON de sessão do disco, se existir
         session_file = lobby.get_session_path()
         if os.path.exists(session_file):
             try:
@@ -266,7 +286,6 @@ def delete_lobby(lobby_id):
             except Exception as file_err:
                 print(f"[Delete Lobby] Erro ao remover ficheiro de sessão: {file_err}")
 
-        # 3. Exclui o lobby do banco de dados (o SQLAlchemy apaga as contas vinculadas em cascata)
         db.session.delete(lobby)
         db.session.commit()
 
@@ -275,177 +294,39 @@ def delete_lobby(lobby_id):
         db.session.rollback()
         flash(f'Ocorreu um erro ao tentar excluir o lobby: {str(e)}', 'danger')
 
-    return redirect(url_for('main.lobbies_list'))
+    return redirect(url_for('main.index'))
 
 
-@main_bp.route('/lobbies/<int:lobby_id>/toggle-status', methods=['POST'])
+@main_bp.route('/lobbies/<int:lobby_id>/sincronizar', methods=['POST'])
 @login_required
 @user_active_required
-def toggle_lobby_status(lobby_id):
-    """Alterna o status do lobby (ATIVO/INATIVO/ERRO) e liga/desliga o navegador imediatamente."""
-    lobby = Lobby.query.filter_by(id=lobby_id, user_id=current_user.id).first_or_404()
-
-    if lobby.status in ['ATIVO', 'ERRO']:
-        lobby.status = 'INATIVO'
-        db.session.commit()
-        # Fecha exclusivamente o navegador deste lobby
-        BotManager.stop_lobby(lobby.id)
-        flash(f'Lobby "{lobby.nickname}" inativado e navegador encerrado com sucesso.', 'warning')
-    else:
-        if not lobby.proxy or lobby.proxy.status != 'ATIVO':
-            flash(f'Não é possível ativar o lobby "{lobby.nickname}" pois a Proxy vinculada está inativa.', 'danger')
-            return redirect(url_for('main.lobbies_list'))
-
-        if not lobby.is_session_valid:
-            flash(f'O lobby "{lobby.nickname}" não possui uma sessão salva. Por favor, autentique-o primeiro.', 'danger')
-            return redirect(url_for('main.lobbies_list'))
-
-        lobby.status = 'ATIVO'
-        db.session.commit()
-        # Abre o navegador imediatamente ao ativar
-        app = current_app._get_current_object()
-        BotManager.start_lobby(lobby.id, app)
-        flash(f'Lobby "{lobby.nickname}" ativado e automação iniciada!', 'success')
-
-    return redirect(url_for('main.lobbies_list'))
-
-
-# ==========================================
-# ROTAS DE AUTENTICAÇÃO INTERATIVA DE SESSÃO
-# ==========================================
-
-@main_bp.route('/lobbies/<int:lobby_id>/autenticar-interativo', methods=['POST'])
-@login_required
-@user_active_required
-def authenticate_lobby_interactive(lobby_id):
-    """Abre uma janela Playwright visível (sem proxy) direcionada ao login com e-mail e senha preenchidos."""
+def sync_lobby(lobby_id):
+    """Sincroniza os servidores/contas do lobby conectando diretamente ao Ikariam."""
     lobby = Lobby.query.filter_by(id=lobby_id, user_id=current_user.id).first_or_404()
 
     try:
-        from playwright.sync_api import sync_playwright
+        from app.bot.tasks.accounts_scraper import AccountsScraperTask
 
-        session_file = lobby.get_session_path()
-        lobby_password = lobby.get_password()
+        # Executa a raspagem direta das contas do lobby via Playwright
+        accounts_data = AccountsScraperTask.run_sync_for_lobby(lobby)
 
-        with sync_playwright() as p:
-            browser = p.chromium.launch(headless=False)
-            context = browser.new_context()
-            page = context.new_page()
-
-            page.goto("https://lobby.ikariam.gameforge.com/pt_BR/login", timeout=60000, wait_until="domcontentloaded")
-
-            try:
-                tab_login = page.locator("ul.tabs-header li:has-text('Entrar'), ul.tabs-header li:has-text('Log in')").first
-                if tab_login.is_visible(timeout=3000):
-                    tab_login.click()
-            except Exception:
-                pass
-
-            try:
-                email_input = page.locator("input[type='email'], input[name='email'], input[name='login']").first
-                email_input.wait_for(state="visible", timeout=10000)
-                email_input.fill(lobby.email)
-
-                pwd_input = page.locator("input[type='password'], input[name='password']").first
-                pwd_input.wait_for(state="visible", timeout=5000)
-                if lobby_password:
-                    pwd_input.fill(lobby_password)
-
-                print(f"[Auth Direct] Credenciais preenchidas para {lobby.email}.")
-            except Exception as fill_err:
-                print(f"[Auth Direct] Aviso ao preencher formulário: {fill_err}")
-
-            print(f"[Auth Direct] Aguardando o usuário resolver o CAPTCHA/clicar em Entrar no Lobby #{lobby.id}...")
-
-            page.wait_for_url(lambda url: "/hub" in url or "/accounts" in url, timeout=180000)
-            page.wait_for_timeout(3000)
-
-            cookies = context.cookies()
-            local_storage = page.evaluate("() => JSON.stringify(localStorage)")
-
-            os.makedirs(os.path.dirname(session_file), exist_ok=True)
-
-            with open(session_file, "w", encoding="utf-8") as f:
-                json.dump({"cookies": cookies, "local_storage": local_storage}, f, indent=4)
-
-            browser.close()
-
-        lobby.has_session = True
-        db.session.commit()
-
-        return jsonify({'success': True, 'message': 'Autenticação realizada e sessão capturada com sucesso!'})
+        if accounts_data:
+            # Sincronização concluída com sucesso: marca lobby como ATIVO
+            lobby.status = 'ATIVO'
+            db.session.commit()
+            flash(f"Lobby '{lobby.nickname}' sincronizado! {len(accounts_data)} conta(s) encontrada(s).", "success")
+        else:
+            flash(f"Nenhuma conta encontrada na sincronização do Lobby '{lobby.nickname}'.", "warning")
 
     except Exception as e:
         db.session.rollback()
-        return jsonify({'success': False, 'message': f'Falha na autenticação: {str(e)}'}), 500
-
-
-# ==========================================
-# ROTAS DO DISJUNTOR GERAL (AUTOMAÇÃO EM LOTE)
-# ==========================================
-
-@main_bp.route('/bot/iniciar', methods=['POST'])
-@login_required
-@user_active_required
-def start_bot():
-    """Disjuntor Geral: Ligar Todos os Lobbies com sessão válida."""
-    app = current_app._get_current_object()
-
-    lobbies = Lobby.query.filter_by(user_id=current_user.id).all()
-    lobbies_para_rodar = [l for l in lobbies if l.proxy and l.proxy.status == 'ATIVO' and l.is_session_valid]
-
-    if not lobbies_para_rodar:
-        if request.headers.get('X-Requested-With') == 'XMLHttpRequest':
-            return jsonify({'success': False, 'message': 'Nenhum lobby elegível disponível.'})
-        flash('Nenhum lobby com conexão proxy e sessão válida disponível para iniciar.', 'warning')
-        return redirect(url_for('main.lobbies_list'))
-
-    iniciados = 0
-    for lobby in lobbies_para_rodar:
-        lobby.status = 'ATIVO'
-        if not BotManager.is_running(lobby.id):
-            BotManager.start_lobby(lobby.id, app)
-            iniciados += 1
-
-    db.session.commit()
-
-    if request.headers.get('X-Requested-With') == 'XMLHttpRequest':
-        return jsonify({'success': True, 'message': f'{iniciados} navegador(es) iniciado(s) com sucesso.'})
-
-    if iniciados > 0:
-        flash(f'{iniciados} navegador(es) iniciado(s) com sucesso.', 'success')
-    else:
-        flash('Todos os lobbies elegíveis já estão em execução.', 'info')
-
-    return redirect(url_for('main.lobbies_list'))
-
-
-@main_bp.route('/bot/parar-todos', methods=['POST'])
-@login_required
-@user_active_required
-def stop_all_bots():
-    """Disjuntor Geral: Desligar Todos os navegadores em execução do usuário instantaneamente."""
-    lobbies = Lobby.query.filter_by(user_id=current_user.id).all()
-
-    encerrados = 0
-    for lobby in lobbies:
-        # Altera o status no banco para INATIVO para forçar o encerramento em tempo real
+        # Se ocorrer falha de conexão com a proxy ou sessão expirada, marca como INATIVO
         lobby.status = 'INATIVO'
-        if BotManager.is_running(lobby.id):
-            BotManager.stop_lobby(lobby.id)
-            encerrados += 1
+        db.session.commit()
+        print(f"[Sync ERRO] Falha ao sincronizar lobby #{lobby.id}: {e}")
+        flash(f"Falha na conexão do Lobby/Proxy: {str(e)}", "danger")
 
-    db.session.commit()
-
-    if request.headers.get('X-Requested-With') == 'XMLHttpRequest':
-        return jsonify({'success': True, 'message': f'{encerrados} navegador(es) encerrado(s) com sucesso.'})
-
-    if encerrados > 0:
-        flash(f'{encerrados} navegador(es) encerrado(s) com sucesso.', 'success')
-    else:
-        flash('Nenhum navegador estava em execução no momento.', 'info')
-
-    return redirect(url_for('main.lobbies_list'))
+    return redirect(url_for('main.index'))
 
 
 # ==========================================

@@ -9,4 +9,105 @@
   border-color: #e2a03e;
 }
 
+/* ==========================================================================
+   TEMA ESCURO GLOBAL (DARK MODE) - IKARIUMBOT
+   ========================================================================== */
+
+[data-bs-theme="dark"] body,
+[data-bs-theme="dark"] .bg-body {
+  background-color: #121417 !important;
+  color: #e2e8f0 !important;
+}
+
+[data-bs-theme="dark"] .bg-body-tertiary {
+  background-color: #1e2227 !important;
+}
+
+[data-bs-theme="dark"] .card {
+  background-color: #1e2227 !important;
+  border-color: #2d3239 !important;
+}
+
+/* Textos e Títulos com Alto Contraste */
+[data-bs-theme="dark"] .text-secondary,
+[data-bs-theme="dark"] .text-muted,
+[data-bs-theme="dark"] .small {
+  color: #94a3b8 !important;
+}
+
+[data-bs-theme="dark"] h1,
+[data-bs-theme="dark"] h2,
+[data-bs-theme="dark"] h3,
+[data-bs-theme="dark"] h4,
+[data-bs-theme="dark"] h5,
+[data-bs-theme="dark"] h6,
+[data-bs-theme="dark"] .fw-bold {
+  color: #f8fafc !important;
+}
+
+/* Tabelas */
+[data-bs-theme="dark"] .table {
+  color: #e2e8f0 !important;
+}
+
+[data-bs-theme="dark"] .table-light,
+[data-bs-theme="dark"] .table-light th {
+  background-color: #262b32 !important;
+  color: #cbd5e1 !important;
+  border-color: #333a45 !important;
+}
+
+[data-bs-theme="dark"] .table-hover tbody tr:hover {
+  background-color: #282d35 !important;
+  color: #ffffff !important;
+}
+
+[data-bs-theme="dark"] code {
+  color: #38bdf8 !important;
+}
+
+/* Botões de Abas */
+[data-bs-theme="dark"] .tab-btn.btn-outline-secondary {
+  color: #94a3b8 !important;
+  border-color: #333a45 !important;
+}
+
+[data-bs-theme="dark"] .tab-btn.btn-outline-secondary:hover {
+  background-color: #2a3038 !important;
+  color: #ffffff !important;
+}
+
+/* Badges e Alertas Visíveis no Escuro */
+[data-bs-theme="dark"] .badge.bg-warning-subtle {
+  background-color: #3b2d00 !important;
+  color: #fde047 !important;
+  border-color: #854d0e !important;
+}
+
+[data-bs-theme="dark"] .badge.bg-success-subtle {
+  background-color: #052e16 !important;
+  color: #4ade80 !important;
+  border-color: #15803d !important;
+}
+
+[data-bs-theme="dark"] .badge.bg-danger-subtle {
+  background-color: #450a0a !important;
+  color: #fca5a5 !important;
+  border-color: #991b1b !important;
+}
+
+[data-bs-theme="dark"] .badge.bg-info-subtle {
+  background-color: #082f49 !important;
+  color: #38bdf8 !important;
+  border-color: #0369a1 !important;
+}
+
+/* Formulários */
+[data-bs-theme="dark"] .form-select,
+[data-bs-theme="dark"] .form-control {
+  background-color: #121417 !important;
+  color: #f1f5f9 !important;
+  border-color: #333a45 !important;
+}
+
 /*# sourceMappingURL=custom.css.map */

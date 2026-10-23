@@ -31,12 +31,15 @@ class BotManager:
     def _run_browser(cls, lobby_id, app, stop_event):
         with app.app_context():
             lobby = db.session.get(Lobby, lobby_id)
-            if not lobby or not lobby.proxy or lobby.proxy.status != 'ATIVO':
+            if not lobby or not lobby.proxy:
+                print(f"[BotManager] Lobby #{lobby_id} sem proxy ou não encontrado.")
                 with cls._lock:
                     cls._instances.pop(lobby_id, None)
                 return
 
             proxy_info = lobby.proxy
+
+            # Formatação segura da proxy para o Playwright
             proxy_config = {"server": f"http://{proxy_info.address}:{proxy_info.port}"}
             if proxy_info.username and proxy_info.get_password():
                 proxy_config["username"] = proxy_info.username
@@ -47,9 +50,10 @@ class BotManager:
 
             try:
                 p = sync_playwright().start()
+                # headless=True para rodar em segundo plano sem abrir janelas indesejadas
                 browser = p.chromium.launch(headless=False)
 
-                # 1. Autenticação utilizando os cookies/storage_state salvos do cliente
+                # 1. Autenticação e aplicação da proxy no contexto do browser
                 context, page = AuthManager.get_authenticated_context(browser, lobby, proxy_config)
 
                 # Marca no banco que o lobby possui uma sessão ativa válida
@@ -60,35 +64,27 @@ class BotManager:
 
                 # Loop contínuo de vida útil da instância Playwright
                 while not stop_event.is_set():
-                    # Reabre a sessão para verificar o status atualizado do Lobby no Banco de Dados
                     lobby_atualizado = db.session.get(Lobby, lobby_id)
 
-                    # Se o Lobby foi inativado pelo usuário, encerra o loop da thread
                     if not lobby_atualizado or lobby_atualizado.status != 'ATIVO':
                         print(f"[BotManager] Lobby '{lobby.nickname}' inativado pelo usuário. Encerrando automação...")
                         break
 
-                    # 2. Instancia a lista mutável de contas para captura via Network Interceptor
                     captured_accounts = []
                     NetworkInterceptor.listen_accounts_api(page, captured_accounts)
 
-                    # 3. TASK 1: Varrida/Scraping contínuo para manter os servidores atualizados no BD
                     AccountsScraperTask.run(lobby_atualizado, page, captured_accounts)
-
-                    # 4. TASK 2: Automação e Login nos servidores individuais com automação ativa
                     ServerLoginTask.run(lobby_atualizado, page)
 
-                    # Intervalo entre os ciclos de verificação/automação (ajustável conforme a necessidade)
                     time.sleep(5.0)
 
             except Exception as e:
                 print(f"[BotManager ERRO] Falha no Lobby #{lobby_id}: {e}")
 
-                # Se a falha foi por sessão expirada/ausente, atualiza a flag no banco
                 lobby_atual = db.session.get(Lobby, lobby_id)
                 if lobby_atual:
                     lobby_atual.has_session = lobby_atual.is_session_valid
-                    lobby_atual.status = 'ERRO'
+                    lobby_atual.status = 'INATIVO'  # Marca como inativo se der erro de conexão/proxy
                     db.session.commit()
 
             finally:
