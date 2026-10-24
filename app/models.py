@@ -1,3 +1,5 @@
+# app/models.py
+
 import base64
 import os
 from datetime import datetime
@@ -160,6 +162,17 @@ class Lobby(db.Model):
         return os.path.exists(session_file) and os.path.getsize(session_file) > 0
 
 
+class LobbyIPHistory(db.Model):
+    __tablename__ = 'lobby_ip_history'
+
+    id = db.Column(db.Integer, primary_key=True)
+    lobby_id = db.Column(db.Integer, db.ForeignKey('lobbies.id'), nullable=False)
+    ip_address = db.Column(db.String(45), nullable=False)
+    recorded_at = db.Column(db.DateTime, default=get_brasilia_time)
+
+    lobby = db.relationship('Lobby', backref=db.backref('ip_history', lazy=True, cascade='all, delete-orphan'))
+
+
 class Conta(db.Model):
     __tablename__ = 'contas'
 
@@ -169,10 +182,16 @@ class Conta(db.Model):
     pais = db.Column(db.String(10), nullable=False, default='pt')  # Ex: pt, br, en
     nome_usuario = db.Column(db.String(100), nullable=False)  # Nome do jogador no servidor
     email = db.Column(db.String(120), nullable=False)  # E-mail associado
-    ativo = db.Column(db.Boolean, default=True)  # Status da conta na Gameforge
+
+    ativo = db.Column(db.Boolean, default=True)  # Controla se a conta está selecionada/ativa para exibição no painel
+    status_jogo = db.Column(db.String(50),
+                            default='Ativa')  # Status real vindo da Gameforge (ex: Ativa, Bloqueada, Banida)
 
     automacao_ativa = db.Column(db.Boolean, default=False, nullable=False)  # Se a automação deve rodar nesta conta
     ultimo_login = db.Column(db.DateTime, nullable=True)  # Data e hora do último acesso pelo bot
+
+    # Campo para controlo da sessão manual do navegador
+    is_playing_active = db.Column(db.Boolean, default=False)
 
     # Novos campos para exibição no painel da conta
     ouro = db.Column(db.String(50), default="0")

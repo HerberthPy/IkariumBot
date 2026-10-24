@@ -77,6 +77,9 @@
         <button class="btn btn-primary rounded-3 px-4 py-2 fw-semibold d-flex align-items-center tab-btn active" onclick="switchUserTab('lobbies-pane', this)">
           <i class="bi bi-controller me-2"></i>Meus Lobbies
         </button>
+        <button class="btn btn-outline-secondary rounded-3 px-4 py-2 fw-semibold d-flex align-items-center tab-btn" onclick="switchUserTab('imperio-pane', this)">
+          <i class="bi bi-shield-shaded me-2 text-warning"></i>Império
+        </button>
         <button class="btn btn-outline-secondary rounded-3 px-4 py-2 fw-semibold d-flex align-items-center tab-btn" onclick="switchUserTab('proxies-pane', this)">
           <i class="bi bi-hdd-network-fill me-2 text-primary"></i>Minhas Proxies
         </button>
@@ -170,20 +173,14 @@
                   </td>
 
                   <td class="pe-4 py-3 text-end">
-                    <!-- Sincronizar -->
                     <form action="{{ url_for('main.sync_lobby', lobby_id=lobby.id) }}" method="POST" class="d-inline">
-                      <button type="submit"
-                              class="btn btn-sm btn-outline-primary rounded-circle me-1"
-                              title="Sincronizar Servidores do Lobby">
+                      <button type="submit" class="btn btn-sm btn-outline-primary rounded-circle me-1" title="Sincronizar Servidores do Lobby">
                         <i class="bi bi-arrow-repeat"></i>
                       </button>
                     </form>
 
-                    <!-- Varredura Geral / Trocar Conta -->
                     <form action="{{ url_for('main.varredura_geral_lobby', lobby_id=lobby.id) }}" method="POST" class="d-inline">
-                      <button type="submit"
-                              class="btn btn-sm btn-outline-warning rounded-circle me-1"
-                              title="Varredura Geral (Trocar Conta)">
+                      <button type="submit" class="btn btn-sm btn-outline-warning rounded-circle me-1" title="Varredura Geral (Trocar Conta)">
                         <i class="bi bi-arrow-clockwise"></i>
                       </button>
                     </form>
@@ -212,74 +209,69 @@
                           <i class="bi bi-hdd-rack me-1"></i> Servidores / Contas do Lobby ({{ lobby.nickname }})
                         </h6>
                         <span class="small text-secondary">
-                          Total: <strong id="accordion-count-{{ lobby.id }}">{{ lobby.contas|length if lobby.contas else 0 }}</strong> conta(s)
+                          Total: <strong id="accordion-count-{{ lobby.id }}">{{ lobby.contas|selectattr('ativo')|list|length if lobby.contas else 0 }}</strong> conta(s) ativa(s)
                         </span>
                       </div>
 
                       <div id="accordion-body-{{ lobby.id }}">
                         {% if lobby.contas %}
-                        <div class="table-responsive rounded-3 border bg-body-tertiary">
-                          <table class="table table-sm table-hover align-middle mb-0 w-100">
-                            <thead class="border-bottom">
-                              <tr>
-                                <th class="ps-3 py-2 small fw-semibold">MUNDO</th>
-                                <th class="py-2 small fw-semibold text-center">PAÍS</th>
-                                <th class="py-2 small fw-semibold">JOGADOR</th>
-                                <th class="py-2 small fw-semibold text-center">ÚLTIMO LOGIN</th>
-                                <th class="py-2 small fw-semibold text-center">STATUS</th>
-                                <th class="pe-3 py-2 text-end small fw-semibold">AÇÃO</th>
-                              </tr>
-                            </thead>
-                            <tbody>
-                              {% for conta in lobby.contas %}
-                              <tr>
-                                <td class="ps-3 py-2 fw-bold text-dark small">
-                                  <i class="bi bi-hdd-network text-primary me-2"></i>{{ conta.servidor }}
-                                </td>
-                                <td class="py-2 text-center">
-                                  <span class="badge bg-secondary-subtle text-uppercase text-secondary border px-2 py-0.5 extra-small">
-                                    {{ conta.pais }}
-                                  </span>
-                                </td>
-                                <td class="py-2 small text-secondary">
-                                  <i class="bi bi-person me-1"></i>{{ conta.nome_usuario }}
-                                </td>
-                                <td class="py-2 text-center">
-                                  {% if conta.dias_sem_login == "Nunca" %}
-                                    <span class="badge bg-secondary-subtle text-secondary border rounded-pill px-2 py-0.5 extra-small">Nunca</span>
-                                  {% elif conta.dias_sem_login == 0 %}
-                                    <span class="badge bg-success-subtle text-success border rounded-pill px-2 py-0.5 extra-small">Hoje</span>
-                                  {% else %}
-                                    <span class="badge bg-warning-subtle border rounded-pill px-2 py-0.5 extra-small">{{ conta.dias_sem_login }}d atrás</span>
-                                  {% endif %}
-                                </td>
-                                <td class="py-2 text-center">
-                                  {% if conta.ativo %}
-                                    <span class="badge bg-success-subtle text-success border rounded-pill px-2 py-0.5 extra-small">Ativa</span>
-                                  {% else %}
-                                    <span class="badge bg-danger-subtle text-danger border rounded-pill px-2 py-0.5 extra-small">Bloqueada</span>
-                                  {% endif %}
-                                </td>
-                                <td class="pe-3 py-2 text-end">
-                                  {% if conta.ativo %}
-                                    <button class="btn btn-xs btn-outline-success rounded-3 px-2 py-1 fw-semibold extra-small"
-                                            onclick="abrirAbaConta({{ conta.id }}, '{{ conta.servidor }} - {{ conta.nome_usuario }}')"
-                                            title="Entrar na Conta">
-                                      <i class="bi bi-box-arrow-in-right me-1"></i> Entrar
-                                    </button>
-                                  {% else %}
-                                    <button class="btn btn-xs btn-outline-secondary rounded-3 px-2 py-1 fw-semibold extra-small opacity-50"
-                                            disabled
-                                            title="Conta Bloqueada / Inativa">
-                                      <i class="bi bi-box-arrow-in-right me-1"></i> Entrar
-                                    </button>
-                                  {% endif %}
-                                </td>
-                              </tr>
-                              {% endfor %}
-                            </tbody>
-                          </table>
-                        </div>
+                          {% set contas_ativas = lobby.contas | selectattr('ativo') | list %}
+                          {% if contas_ativas %}
+                          <div class="table-responsive rounded-3 border bg-body-tertiary">
+                            <table class="table table-sm table-hover align-middle mb-0 w-100">
+                              <thead class="border-bottom">
+                                <tr>
+                                  <th class="ps-3 py-2 small fw-semibold">MUNDO</th>
+                                  <th class="py-2 small fw-semibold text-center">PAÍS</th>
+                                  <th class="py-2 small fw-semibold">JOGADOR</th>
+                                  <th class="py-2 small fw-semibold text-center">ÚLTIMO LOGIN</th>
+                                  <th class="py-2 small fw-semibold text-center">STATUS (JOGO)</th>
+                                </tr>
+                              </thead>
+                              <tbody>
+                                {% for conta in contas_ativas %}
+                                <tr style="cursor: pointer;" onclick="abrirAbaConta({{ conta.id }}, '{{ conta.servidor }} - {{ conta.nome_usuario }}', {{ 'true' if conta.is_playing_active else 'false' }})" title="Clique para abrir os detalhes da conta">
+                                  <td class="ps-3 py-2 fw-bold text-dark small">
+                                    <i class="bi bi-hdd-network text-primary me-2"></i>{{ conta.servidor }}
+                                  </td>
+                                  <td class="py-2 text-center">
+                                    <span class="badge bg-secondary-subtle text-uppercase text-secondary border px-2 py-0.5 extra-small">
+                                      {{ conta.pais }}
+                                    </span>
+                                  </td>
+                                  <td class="py-2 small text-secondary">
+                                    <i class="bi bi-person me-1"></i>{{ conta.nome_usuario }}
+                                  </td>
+                                  <td class="py-2 text-center">
+                                    {% if conta.dias_sem_login == "Nunca" %}
+                                      <span class="badge bg-secondary-subtle text-secondary border rounded-pill px-2 py-0.5 extra-small">Nunca</span>
+                                    {% elif conta.dias_sem_login == 0 %}
+                                      <span class="badge bg-success-subtle text-success border rounded-pill px-2 py-0.5 extra-small">Hoje</span>
+                                    {% else %}
+                                      <span class="badge bg-warning-subtle border rounded-pill px-2 py-0.5 extra-small">{{ conta.dias_sem_login }}d atrás</span>
+                                    {% endif %}
+                                  </td>
+                                  <td class="py-2 text-center">
+                                    {% if conta.status_jogo and conta.status_jogo.lower() in ['bloqueada', 'banida', 'banned'] %}
+                                      <span class="badge bg-danger text-white border rounded-pill px-2 py-0.5 extra-small">
+                                        <i class="bi bi-slash-circle me-1"></i> {{ conta.status_jogo }}
+                                      </span>
+                                    {% else %}
+                                      <span class="badge bg-success-subtle text-success border rounded-pill px-2 py-0.5 extra-small">
+                                        <i class="bi bi-check-circle me-1"></i> {{ conta.status_jogo if conta.status_jogo else 'Ativa' }}
+                                      </span>
+                                    {% endif %}
+                                  </td>
+                                </tr>
+                                {% endfor %}
+                              </tbody>
+                            </table>
+                          </div>
+                          {% else %}
+                          <div class="text-center py-3 text-secondary small">
+                            <i class="bi bi-search me-1"></i> Nenhuma conta ativa selecionada neste lobby.
+                          </div>
+                          {% endif %}
                         {% else %}
                         <div class="text-center py-3 text-secondary small">
                           <i class="bi bi-search me-1"></i> Nenhuma conta detectada neste lobby até o momento.
@@ -328,7 +320,7 @@
               <a class="btn btn-outline-primary btn-sm rounded-pill fw-semibold px-3" href="https://lobby.ikariam.gameforge.com/pt_BR/" target="_blank">
                 <i class="bi bi-box-arrow-up-right me-1"></i> Abrir Ikariam BR
               </a>
-              <a id="dragBookmarkletBtn" class="btn btn-warning btn-sm rounded-pill fw-bold px-4 shadow-sm text-dark" href="#">
+              <a class="dragBookmarkletBtn btn btn-warning btn-sm rounded-pill fw-bold px-4 shadow-sm text-dark" href="#">
                 <i class="bi bi-star-fill me-1"></i> Arraste para os Favoritos
               </a>
             </div>
@@ -374,6 +366,31 @@
       <div id="subtab-edit" class="subtab-pane d-none">
         <div class="card border-0 shadow-sm rounded-4 p-4 bg-body-tertiary col-12 col-md-8 mx-auto">
           <h5 class="fw-bold mb-3"><i class="bi bi-pencil-square text-primary me-2"></i>Editar Configurações do Lobby</h5>
+
+          <div class="mb-4">
+            <button type="button" class="btn btn-outline-info btn-sm rounded-pill fw-semibold w-100 py-2 d-flex align-items-center justify-content-center gap-2 shadow-sm" id="toggleRenovarSessaoBtn" onclick="toggleRenovarSessaoBox()">
+              <i class="bi bi-key-fill"></i> Atualizar Sessão / Obter Novo Código
+            </button>
+
+            <div class="card border border-info-subtle rounded-3 p-3 bg-body mt-2 d-none shadow-sm" id="boxRenovarSessao">
+              <h6 class="fw-bold text-info small mb-2"><i class="bi bi-bookmark-star-fill me-1"></i> Renovar Sessão via Favoritos:</h6>
+              <ol class="text-secondary extra-small mb-3 ps-3">
+                <li class="mb-1">Arraste o botão amarelo abaixo para a sua <strong>Barra de Favoritos</strong> do navegador.</li>
+                <li class="mb-1">Clique em <strong>Abrir Ikariam BR</strong> e faça o seu login normalmente.</li>
+                <li>Com o lobby aberto, clique no favorito salvo para copiar o seu novo <strong>Código de Sessão</strong> e colá-lo abaixo.</li>
+              </ol>
+
+              <div class="d-flex flex-wrap gap-2 justify-content-center py-2">
+                <a class="btn btn-outline-primary btn-sm rounded-pill fw-semibold px-3" href="https://lobby.ikariam.gameforge.com/pt_BR/" target="_blank">
+                  <i class="bi bi-box-arrow-up-right me-1"></i> Abrir Ikariam BR
+                </a>
+                <a class="dragBookmarkletBtn btn btn-warning btn-sm rounded-pill fw-bold px-4 shadow-sm text-dark" href="#">
+                  <i class="bi bi-star-fill me-1"></i> Arraste para os Favoritos
+                </a>
+              </div>
+            </div>
+          </div>
+
           <form id="editLobbyForm" action="" method="POST">
             <div class="mb-3">
               <label class="form-label small fw-semibold text-secondary">Apelido do Lobby</label>
@@ -404,6 +421,144 @@
       </div> <!-- FIM SUB-ABA 1.3 -->
 
     </div> <!-- FIM ABA LOBBIES -->
+
+    <!-- ABA NOVA: IMPÉRIO -->
+    <div id="imperio-pane" class="tab-pane-custom d-none">
+      <!-- CARD GERAL (CLICÁVEL PARA MOSTRAR/OCULTAR OS LOBBIES) -->
+      <div class="card border-0 shadow-sm rounded-4 p-4 mb-4 bg-body-tertiary border-top border-warning border-4" style="cursor: pointer;" onclick="toggleImperioLobbiesList()" title="Clique para exibir/ocultar os lobbies">
+        <div class="d-flex justify-content-between align-items-center mb-3">
+          <h5 class="fw-bold mb-0 text-primary"><i class="bi bi-shield-shaded me-2"></i>Consolidado do Império (Geral)</h5>
+          <span class="small text-secondary fw-semibold"><i class="bi bi-eye me-1"></i> Clique para ver detalhes por lobby</span>
+        </div>
+        <div class="row text-center g-3 py-2 bg-body rounded-3 border align-items-center justify-content-around">
+          <div class="col-auto d-flex align-items-center gap-2">
+            <img src="{{ url_for('static', filename='img/finances.png') }}" alt="Ouro" style="width: 28px; height: 28px;">
+            <div class="text-start">
+              <div class="fw-bold small">
+                {{ "{:,.0f}".format(totais_gerais.ouro).replace(',', '.') }}
+                <span class="text-success fw-normal" style="font-size: 0.8rem;">({{ totais_gerais.ouro_rendimento }}/h)</span>
+              </div>
+            </div>
+          </div>
+          <div class="col-auto d-flex align-items-center gap-1">
+            <img src="{{ url_for('static', filename='img/icon_wood.png') }}" style="width: 20px; height: 20px;">
+            <span class="fw-bold small">{{ "{:,.0f}".format(totais_gerais.madeira).replace(',', '.') }}</span>
+          </div>
+          <div class="col-auto d-flex align-items-center gap-1">
+            <img src="{{ url_for('static', filename='img/icon_wine.png') }}" style="width: 20px; height: 20px;">
+            <span class="fw-bold small">{{ "{:,.0f}".format(totais_gerais.vinho).replace(',', '.') }}</span>
+          </div>
+          <div class="col-auto d-flex align-items-center gap-1">
+            <img src="{{ url_for('static', filename='img/icon_marble.png') }}" style="width: 20px; height: 20px;">
+            <span class="fw-bold small">{{ "{:,.0f}".format(totais_gerais.marmore).replace(',', '.') }}</span>
+          </div>
+          <div class="col-auto d-flex align-items-center gap-1">
+            <img src="{{ url_for('static', filename='img/icon_glass.png') }}" style="width: 20px; height: 20px;">
+            <span class="fw-bold small">{{ "{:,.0f}".format(totais_gerais.cristal).replace(',', '.') }}</span>
+          </div>
+          <div class="col-auto d-flex align-items-center gap-1">
+            <img src="{{ url_for('static', filename='img/icon_sulfur.png') }}" style="width: 20px; height: 20px;">
+            <span class="fw-bold small">{{ "{:,.0f}".format(totais_gerais.enxofre).replace(',', '.') }}</span>
+          </div>
+        </div>
+      </div>
+
+      <!-- LISTA DE LOBBIES NO MÓDULO IMPÉRIO (INICIALMENTE OCULTA) -->
+      <div class="card border-0 shadow-sm rounded-4 overflow-hidden bg-body-tertiary d-none" id="imperio-lobbies-card">
+        {% if imperio_data %}
+        <div class="table-responsive">
+          <table class="table table-hover align-middle mb-0 w-100">
+            <thead class="border-bottom">
+              <tr>
+                <th scope="col" class="ps-4 py-3 small fw-semibold">LOBBY / CONTA</th>
+                <th scope="col" class="py-3 small fw-semibold text-center">OURO</th>
+                <th scope="col" class="py-3 small fw-semibold text-center">MADEIRA</th>
+                <th scope="col" class="py-3 small fw-semibold text-center">VINHO</th>
+                <th scope="col" class="py-3 small fw-semibold text-center">MÁRMORE</th>
+                <th scope="col" class="py-3 small fw-semibold text-center">CRISTAL</th>
+                <th scope="col" class="py-3 small fw-semibold text-center">ENXOFRE</th>
+              </tr>
+            </thead>
+            <tbody>
+              {% for item in imperio_data %}
+              <!-- LINHA DO LOBBY (SEM SETA) -->
+              <tr class="lobby-imperio-row" style="cursor: pointer;" onclick="toggleImperioLobbyAccordion({{ item.lobby_id }}, event)">
+                <td class="ps-4 py-3 fw-bold text-primary">
+                  <i class="bi bi-controller me-2"></i>{{ item.nickname }}
+                </td>
+                <td class="py-3 text-center">
+                  <div class="fw-semibold">
+                    {{ "{:,.0f}".format(item.ouro).replace(',', '.') }}
+                    <span class="text-success fw-normal" style="font-size: 0.8rem;">({% if item.ouro_rendimento >= 0 %}+{% endif %}{{ "{:,.0f}".format(item.ouro_rendimento).replace(',', '.') }}/h)</span>
+                  </div>
+                </td>
+                <td class="py-3 text-center fw-semibold">{{ "{:,.0f}".format(item.madeira).replace(',', '.') }}</td>
+                <td class="py-3 text-center fw-semibold">{{ "{:,.0f}".format(item.vinho).replace(',', '.') }}</td>
+                <td class="py-3 text-center fw-semibold">{{ "{:,.0f}".format(item.marmore).replace(',', '.') }}</td>
+                <td class="py-3 text-center fw-semibold">{{ "{:,.0f}".format(item.cristal).replace(',', '.') }}</td>
+                <td class="py-3 text-center fw-semibold">{{ "{:,.0f}".format(item.enxofre).replace(',', '.') }}</td>
+              </tr>
+
+              <!-- SUB-LINHA EXPANSÍVEL POR CONTA DO LOBBY -->
+              <tr id="imperio-accordion-row-{{ item.lobby_id }}" class="d-none bg-body">
+                <td colspan="7" class="p-3 border-top">
+                  <div class="px-3 py-2 border rounded-3 bg-body-tertiary">
+                    <h6 class="fw-bold mb-2 small text-secondary">
+                      <i class="bi bi-hdd-rack me-1"></i> Contas do Lobby: {{ item.nickname }}
+                    </h6>
+                    <div class="table-responsive rounded-3 border bg-body-tertiary">
+                      <table class="table table-sm table-hover align-middle mb-0 w-100">
+                        <thead class="border-bottom">
+                          <tr>
+                            <th class="ps-3 py-2 small fw-semibold">MUNDO / CONTA</th>
+                            <th class="py-2 small fw-semibold text-center">OURO</th>
+                            <th class="py-2 small fw-semibold text-center">MADEIRA</th>
+                            <th class="py-2 small fw-semibold text-center">VINHO</th>
+                            <th class="py-2 small fw-semibold text-center">MÁRMORE</th>
+                            <th class="py-2 small fw-semibold text-center">CRISTAL</th>
+                            <th class="py-2 small fw-semibold text-center">ENXOFRE</th>
+                          </tr>
+                        </thead>
+                        <tbody>
+                          {% for acc in item.contas %}
+                          <tr style="cursor: pointer;" onclick="abrirAbaConta({{ acc.id }}, '{{ acc.servidor }} - {{ acc.nome_usuario }}', false)" title="Clique para abrir os detalhes da conta">
+                            <td class="ps-3 py-2 fw-bold text-dark small">
+                              <i class="bi bi-hdd-network text-primary me-2"></i>{{ acc.servidor }} - {{ acc.nome_usuario }}
+                            </td>
+                            <td class="py-2 text-center small">
+                              <div class="fw-semibold">
+                                {{ acc.ouro_texto }}
+                                <span class="text-success fw-normal" style="font-size: 0.8rem;">({{ acc.ouro_rendimento }})</span>
+                              </div>
+                            </td>
+                            <td class="py-2 text-center small fw-semibold">{{ "{:,.0f}".format(acc.madeira).replace(',', '.') }}</td>
+                            <td class="py-2 text-center small fw-semibold">{{ "{:,.0f}".format(acc.vinho).replace(',', '.') }}</td>
+                            <td class="py-2 text-center small fw-semibold">{{ "{:,.0f}".format(acc.marmore).replace(',', '.') }}</td>
+                            <td class="py-2 text-center small fw-semibold">{{ "{:,.0f}".format(acc.cristal).replace(',', '.') }}</td>
+                            <td class="py-2 text-center small fw-semibold">{{ "{:,.0f}".format(acc.enxofre).replace(',', '.') }}</td>
+                          </tr>
+                          {% endfor %}
+                        </tbody>
+                      </table>
+                    </div>
+                  </div>
+                </td>
+              </tr>
+              {% endfor %}
+            </tbody>
+          </table>
+        </div>
+        {% else %}
+        <div class="card shadow-sm border-0 py-5 text-center bg-body-tertiary">
+          <div class="card-body">
+            <i class="bi bi-shield-shaded fs-1 text-secondary opacity-50 mb-3 d-block"></i>
+            <h5 class="fw-bold mb-1">Nenhum dado imperial disponível</h5>
+            <p class="text-secondary small mb-0">Cadastre e sincronize lobbies para visualizar o consolidado do império.</p>
+          </div>
+        </div>
+        {% endif %}
+      </div>
+    </div> <!-- FIM ABA IMPÉRIO -->
 
     <!-- ABA 2: MINHAS PROXIES -->
     <div id="proxies-pane" class="tab-pane-custom d-none">
@@ -488,17 +643,16 @@
 {% block extra_js %}
 <script>
   document.addEventListener('DOMContentLoaded', () => {
-    const dragBtn = document.getElementById('dragBookmarkletBtn');
-    if (dragBtn) {
-      const code = "javascript:(function(){if(!window.location.hostname.includes('ikariam')){alert('Abra a página do Ikariam antes de clicar no favorito!');return;}const s={cookies:document.cookie,localStorage:JSON.stringify(localStorage)};const e=btoa(unescape(encodeURIComponent(JSON.stringify(s))));const o=document.createElement('div');o.style='position:fixed;top:0;left:0;width:100vw;height:100vh;background:rgba(15,23,42,0.95);z-index:999999;display:flex;align-items:center;justify-content:center;font-family:Arial,sans-serif;';o.innerHTML=`<div style='background:#1e293b;color:#f8fafc;padding:30px;border-radius:16px;max-width:550px;width:90%;text-align:center;'><h2 style='color:#22c55e;margin-bottom:10px;'>✓ Sessão Capturada!</h2><p style='color:#94a3b8;font-size:13px;'>Copie o código abaixo e cole no formulário do IkariumBot:</p><textarea id='code' readonly style='width:100%;height:100px;background:#0f172a;color:#38bdf8;border:1px solid #334155;border-radius:8px;padding:8px;font-size:11px;resize:none;'>${e}</textarea><button onclick='navigator.clipboard.writeText(\"${e}\");alert(\"Código copiado para a área de transferência!\");' style='margin-top:12px;width:100%;background:#0284c7;color:white;border:none;padding:10px;border-radius:8px;font-weight:bold;cursor:pointer;'>📋 Copiar Código da Sessão</button><button onclick='(async function(){try{localStorage.clear();sessionStorage.clear();if(window.indexedDB&&indexedDB.databases){const dbs=await indexedDB.databases();dbs.forEach(db=>{if(db.name)indexedDB.deleteDatabase(db.name);});}if(window.caches){const keys=await caches.keys();keys.forEach(k=>caches.delete(k));}}catch(err){}document.cookie.split(\";\").forEach(c=>{document.cookie=c.replace(/^ +/,\"\").replace(/=.*/,\"=;expires=\"+new Date().toUTCString()+\";path=/;domain=\"+window.location.hostname);document.cookie=c.replace(/^ +/,\"\").replace(/=.*/,\"=;expires=\"+new Date().toUTCString()+\";path=/;domain=.gameforge.com\");});window.location.href=\"https://lobby.ikariam.gameforge.com/pt_BR/login\";})();' style='margin-top:8px;width:100%;background:#d97706;color:white;border:none;padding:10px;border-radius:8px;font-weight:bold;cursor:pointer;'>🚪 Sair do Navegador (Para Logar Outro Lobby)</button></div>`;document.body.appendChild(o);})();";
-      dragBtn.setAttribute('href', code);
+    const bookmarkletCode = "javascript:(function(){if(!window.location.hostname.includes('ikariam')){alert('Abra a página do Ikariam antes de clicar no favorito!');return;}const s={cookies:document.cookie,localStorage:JSON.stringify(localStorage)};const e=btoa(unescape(encodeURIComponent(JSON.stringify(s))));const o=document.createElement('div');o.style='position:fixed;top:0;left:0;width:100vw;height:100vh;background:rgba(15,23,42,0.95);z-index:999999;display:flex;align-items:center;justify-content:center;font-family:Arial,sans-serif;';o.innerHTML=`<div style='background:#1e293b;color:#f8fafc;padding:30px;border-radius:16px;max-width:550px;width:90%;text-align:center;'><h2 style='color:#22c55e;margin-bottom:10px;'>✓ Sessão Capturada!</h2><p style='color:#94a3b8;font-size:13px;'>Copie o código abaixo e cole no formulário do IkariumBot:</p><textarea id='code' readonly style='width:100%;height:100px;background:#0f172a;color:#38bdf8;border:1px solid #334155;border-radius:8px;padding:8px;font-size:11px;resize:none;'>${e}</textarea><button onclick='navigator.clipboard.writeText(\"${e}\");alert(\"Código copiado para a área de transferência!\");' style='margin-top:12px;width:100%;background:#0284c7;color:white;border:none;padding:10px;border-radius:8px;font-weight:bold;cursor:pointer;'>📋 Copiar Código da Sessão</button><button onclick='(async function(){try{localStorage.clear();sessionStorage.clear();if(window.indexedDB&&indexedDB.databases){const dbs=await indexedDB.databases();dbs.forEach(db=>{if(db.name)indexedDB.deleteDatabase(db.name);});}if(window.caches){const keys=await caches.keys();keys.forEach(k=>caches.delete(k));}}catch(err){}document.cookie.split(\";\").forEach(c=>{document.cookie=c.replace(/^ +/,\"\").replace(/=.*/,\"=;expires=\"+new Date().toUTCString()+\";path=/;domain=\"+window.location.hostname);document.cookie=c.replace(/^ +/,\"\").replace(/=.*/,\"=;expires=\"+new Date().toUTCString()+\";path=/;domain=.gameforge.com\");});window.location.href=\"https://lobby.ikariam.gameforge.com/pt_BR/login\";})();' style='margin-top:8px;width:100%;background:#d97706;color:white;border:none;padding:10px;border-radius:8px;font-weight:bold;cursor:pointer;'>🚪 Sair do Navegador (Para Logar Outro Lobby)</button></div>`;document.body.appendChild(o);})();";
+
+    document.querySelectorAll('.dragBookmarkletBtn').forEach(dragBtn => {
+      dragBtn.setAttribute('href', bookmarkletCode);
       dragBtn.addEventListener('click', (e) => {
         e.preventDefault();
         alert('Arraste este botão amarelo até a sua Barra de Favoritos do navegador!');
       });
-    }
+    });
 
-    // ABRIR ABA APENAS UMA VEZ UTILIZANDO .pop() NO JINJA2 PARA EVITAR REABERTURA AO ATUALIZAR (F5)
     {% set temp_selection = session.pop('temp_selection_data', None) %}
     {% if temp_selection %}
       const lobbyId = "{{ temp_selection.lobby_id }}";
@@ -510,7 +664,7 @@
         let htmlContas = `
           <div class="col-12 col-md-8 mx-auto py-3">
             <h4 class="fw-bold mb-3 text-primary"><i class="bi bi-list-check me-2"></i>Seleção de Contas do Lobby</h4>
-            <p class="text-secondary small mb-4">Selecione abaixo qual conta deseja manter ativa no sistema:</p>
+            <p class="text-secondary small mb-4">Selecione abaixo quais contas deseja manter ativas no sistema:</p>
             <form action="{{ url_for('main.save_selected_account') }}" method="POST">
               <input type="hidden" name="lobby_id" value="${lobbyId}">
               <div class="list-group mb-4 shadow-sm">
@@ -519,7 +673,7 @@
         accounts.forEach(acc => {
           htmlContas += `
             <label class="list-group-item list-group-item-action d-flex align-items-center py-3">
-              <input class="form-check-input me-3" type="radio" name="conta_id" value="${acc.db_id}" required>
+              <input class="form-check-input me-3" type="checkbox" name="conta_ids" value="${acc.db_id}">
               <div>
                 <strong>Mundo/Servidor:</strong> ${acc.servidor} | <strong>Jogador:</strong> ${acc.nome_usuario}
               </div>
@@ -541,6 +695,37 @@
     {% endif %}
   });
 
+  function toggleImperioLobbiesList() {
+    const card = document.getElementById('imperio-lobbies-card');
+    if (card) {
+      card.classList.toggle('d-none');
+    }
+  }
+
+  function toggleImperioLobbyAccordion(lobbyId, event) {
+    if (event) event.stopPropagation();
+    const row = document.getElementById(`imperio-accordion-row-${lobbyId}`);
+    if (row) {
+      row.classList.toggle('d-none');
+    }
+  }
+
+  function toggleRenovarSessaoBox() {
+    const box = document.getElementById('boxRenovarSessao');
+    const btn = document.getElementById('toggleRenovarSessaoBtn');
+    if (box.classList.contains('d-none')) {
+      box.classList.remove('d-none');
+      btn.innerHTML = `<i class="bi bi-chevron-up me-1"></i> Ocultar Ferramenta de Renovação`;
+      btn.classList.replace('btn-outline-info', 'btn-info');
+      btn.classList.add('text-white');
+    } else {
+      box.classList.add('d-none');
+      btn.innerHTML = `<i class="bi bi-key-fill"></i> Atualizar Sessão / Obter Novo Código`;
+      btn.classList.replace('btn-info', 'btn-outline-info');
+      btn.classList.remove('text-white');
+    }
+  }
+
   function switchUserTab(targetPaneId, clickedBtn) {
     document.querySelectorAll('.tab-pane-custom').forEach(pane => pane.classList.add('d-none'));
     const targetPane = document.getElementById(targetPaneId);
@@ -554,7 +739,7 @@
     clickedBtn.classList.add('btn-primary', 'active');
   }
 
-  function abrirAbaConta(contaId, contaNome) {
+  function abrirAbaConta(contaId, contaNome, isPlayingActive) {
     const tabId = `account-tab-${contaId}`;
     const paneId = `account-pane-${contaId}`;
     if (document.getElementById(tabId)) {
@@ -562,31 +747,35 @@
       return;
     }
 
+    const btnClass = isPlayingActive ? 'btn-danger' : 'btn-success';
+    const btnText = isPlayingActive ? 'Encerrar Sessão' : 'Jogar';
+    const btnIcon = isPlayingActive ? 'bi-stop-circle-fill' : 'bi-play-circle-fill';
+
     const conteudoPainel = `
       <div class="col-12 py-3">
-        <!-- CABEÇALHO DO IMPÉRIO (LAYOUT PADRÃO ORIGINAL) -->
         <div class="card border-0 shadow-sm rounded-4 p-3 mb-4 bg-body-tertiary border-top border-warning border-4">
           <div class="d-flex flex-column flex-md-row justify-content-between align-items-md-center gap-3">
             <div>
               <h5 class="fw-bold mb-1 text-primary"><i class="bi bi-shield-shaded me-2"></i>${contaNome}</h5>
               <span class="text-secondary small" id="info-sync-${contaId}">Última sincronização: A carregar...</span>
             </div>
-            <div>
-              <button class="btn btn-warning btn-sm fw-bold px-4 shadow-sm text-dark d-flex align-items-center gap-2" id="btn-sync-${contaId}" onclick="sincronizarPainelConta(${contaId})">
-                <i class="bi bi-arrow-repeat" id="spin-icon-${contaId}"></i> ATUALIZAR DADOS
+            <div class="d-flex align-items-center gap-2">
+              <button class="btn ${btnClass} btn-sm fw-bold px-3 shadow-sm text-white d-flex align-items-center gap-2" id="btn-jogar-${contaId}" onclick="jogarManual(${contaId})">
+                <i class="bi ${btnIcon}" id="icon-btn-jogar-${contaId}"></i> <span id="txt-btn-jogar-${contaId}">${btnText}</span>
+              </button>
+              <button class="btn btn-warning btn-sm fw-bold px-3 shadow-sm text-dark d-flex align-items-center gap-2" id="btn-sync-${contaId}" onclick="sincronizarPainelConta(${contaId})">
+                <i class="bi bi-arrow-repeat" id="spin-icon-${contaId}"></i> Atualizar Dados
               </button>
             </div>
           </div>
 
           <hr class="text-secondary opacity-25 my-3">
 
-          <!-- BARRA DE RECURSOS DO IMPÉRIO COM ÍCONES OFICIAIS DO IKARIAM -->
           <div class="row text-center g-3 py-2 bg-body rounded-3 border align-items-center justify-content-around" id="header-recursos-${contaId}">
             <div class="col-auto"><span class="text-secondary small">A carregar recursos...</span></div>
           </div>
         </div>
 
-        <!-- LISTA DE CIDADES E RECURSOS -->
         <div class="card border-0 shadow-sm rounded-4 p-4 bg-body-tertiary">
           <h6 class="fw-bold mb-3 text-secondary"><i class="bi bi-buildings me-2"></i>Cidades do Império & População</h6>
           <div id="lista-cidades-container-${contaId}">
@@ -603,8 +792,61 @@
   function carregarDadosPainelConta(contaId) {
     fetch(`/contas/${contaId}/dados-painel`)
       .then(res => res.json())
-      .then(data => atualizarUIEstatisticasConta(contaId, data))
+      .then(data => {
+        atualizarUIEstatisticasConta(contaId, data);
+        atualizarBotaoJogarUI(contaId, data.is_playing_active);
+      })
       .catch(err => console.error("Erro ao carregar painel:", err));
+  }
+
+  function jogarManual(contaId) {
+    const btnText = document.getElementById(`txt-btn-jogar-${contaId}`);
+
+    if (btnText && btnText.textContent.includes("Encerrar")) {
+      fetch(`/contas/${contaId}/encerrar-manual`, { method: 'POST' })
+        .then(res => res.json())
+        .then(data => {
+          atualizarBotaoJogarUI(contaId, false);
+        })
+        .catch(err => alert("Erro ao encerrar sessão manual."));
+      return;
+    }
+
+    fetch(`/contas/${contaId}/jogar-manual`, { method: 'POST' })
+      .then(res => res.json())
+      .then(data => {
+        if (data.success) {
+          atualizarBotaoJogarUI(contaId, true);
+        } else {
+          alert("Erro ao iniciar o jogo: " + data.message);
+        }
+      })
+      .catch(err => alert("Erro de conexão."));
+  }
+
+  function atualizarBotaoJogarUI(contaId, isActive) {
+    const btn = document.getElementById(`btn-jogar-${contaId}`);
+    const btnText = document.getElementById(`txt-btn-jogar-${contaId}`);
+    const icon = document.getElementById(`icon-btn-jogar-${contaId}`);
+    if (btn && btnText) {
+      if (isActive) {
+        btn.classList.remove('btn-success');
+        btn.classList.add('btn-danger');
+        btnText.textContent = "Encerrar Sessão";
+        if (icon) {
+          icon.classList.remove('bi-play-circle-fill');
+          icon.classList.add('bi-stop-circle-fill');
+        }
+      } else {
+        btn.classList.remove('btn-danger');
+        btn.classList.add('btn-success');
+        btnText.textContent = "Jogar";
+        if (icon) {
+          icon.classList.remove('bi-stop-circle-fill');
+          icon.classList.add('bi-play-circle-fill');
+        }
+      }
+    }
   }
 
   function sincronizarPainelConta(contaId) {
@@ -616,7 +858,7 @@
       .then(res => res.json())
       .then(data => {
         btn.disabled = false;
-        btn.innerHTML = `<i class="bi bi-arrow-repeat"></i> ATUALIZAR DADOS`;
+        btn.innerHTML = `<i class="bi bi-arrow-repeat"></i> Atualizar Dados`;
         if (data.success) {
           carregarDadosPainelConta(contaId);
         } else {
@@ -625,7 +867,7 @@
       })
       .catch(err => {
         btn.disabled = false;
-        btn.innerHTML = `<i class="bi bi-arrow-repeat"></i> ATUALIZAR DADOS`;
+        btn.innerHTML = `<i class="bi bi-arrow-repeat"></i> Atualizar Dados`;
         alert("Erro de conexão ao sincronizar.");
       });
   }
@@ -658,7 +900,6 @@
       totalEnxofre = e.toLocaleString('pt-BR');
     }
 
-    // Constantes locais dos ícones oficiais do Ikariam (Ouro redimensionado e Cidadãos adicionado)
     const iconGold = "{{ url_for('static', filename='img/finances.png') }}";
     const iconTransporter = "{{ url_for('static', filename='img/icon_ship.png') }}";
     const iconWood = "{{ url_for('static', filename='img/icon_wood.png') }}";
@@ -706,7 +947,6 @@
     `;
     document.getElementById(`header-recursos-${contaId}`).innerHTML = headerHtml;
 
-    // Tabela de Cidades
     const cidadesContainer = document.getElementById(`lista-cidades-container-${contaId}`);
     if (data.cidades && data.cidades.length > 0) {
       let cidadesHtml = `
@@ -858,6 +1098,11 @@
 
     const editForm = document.getElementById('editLobbyForm');
     if (editForm) editForm.reset();
+
+    const box = document.getElementById('boxRenovarSessao');
+    if (box && !box.classList.contains('d-none')) {
+      toggleRenovarSessaoBox();
+    }
 
     const btnListTab = document.getElementById('subtab-list-btn');
     switchLobbySubTab('subtab-list', btnListTab);

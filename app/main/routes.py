@@ -11,6 +11,11 @@ from app.main import main_bp
 from app.main.tasks import sync_webshare_job
 from app.main.decorators import admin_required, user_active_required
 from app.bot import BotManager
+from playwright.sync_api import sync_playwright
+import re
+import threading
+
+ACTIVE_MANUAL_BROWSERS = {}
 
 
 @main_bp.route('/')
@@ -18,7 +23,7 @@ from app.bot import BotManager
 @login_required
 @user_active_required
 def index():
-    """Painel do Utilizador: Carrega Lobbies e Proxies unificados em abas."""
+    """Painel do Utilizador: Carrega Lobbies, Proxies e Dados Consolidados do Império."""
     if current_user.is_admin == 1:
         return redirect(url_for('main.admin_dashboard'))
 
@@ -29,12 +34,130 @@ def index():
 
     user_proxies_list = Proxy.query.filter_by(user_id=current_user.id).all()
 
+    total_ouro_geral = 0
+    total_rendimento_geral = 0
+    total_madeira_geral = 0
+    total_vinho_geral = 0
+    total_marmore_geral = 0
+    total_cristal_geral = 0
+    total_enxofre_geral = 0
+
+    empire_data = []
+
+    for lobby in lobbies:
+        lobby_ouro = 0
+        lobby_rendimento = 0
+        lobby_madeira = 0
+        lobby_vinho = 0
+        lobby_marmore = 0
+        lobby_cristal = 0
+        lobby_enxofre = 0
+
+        structured_accounts = []
+
+        for conta in lobby.contas:
+            if not conta.ativo:
+                continue
+
+            # Tratamento robusto para extrair o valor numérico do ouro
+            ouro_val = 0
+            if conta.ouro:
+                try:
+                    clean_gold = re.sub(r'[^\d]', '', str(conta.ouro))
+                    ouro_val = int(clean_gold) if clean_gold else 0
+                except:
+                    ouro_val = 0
+            lobby_ouro += ouro_val
+
+            # Tratamento para extrair o rendimento de ouro/hora (ex: "+565/h" ou "-100/h")
+            rendimento_val = 0
+            if conta.ouro_rendimento:
+                try:
+                    clean_rend = re.sub(r'[^\d\-]', '', str(conta.ouro_rendimento))
+                    rendimento_val = int(clean_rend) if clean_rend else 0
+                except:
+                    rendimento_val = 0
+            lobby_rendimento += rendimento_val
+
+            cidades_list = []
+            if conta.cidades_detalhes:
+                try:
+                    cidades_list = json.loads(conta.cidades_detalhes)
+                except:
+                    cidades_list = []
+
+            c_madeira, c_vinho, c_marmore, c_cristal, c_enxofre = 0, 0, 0, 0, 0
+
+            for cid in cidades_list:
+                recs = cid.get('recursos', {})
+                c_madeira += int(str(recs.get('madeira', '0')).replace('.', '')) if recs.get('madeira') else 0
+                c_vinho += int(str(recs.get('vinho', '0')).replace('.', '')) if recs.get('vinho') else 0
+                c_marmore += int(str(recs.get('marmore', '0')).replace('.', '')) if recs.get('marmore') else 0
+                c_cristal += int(str(recs.get('cristal', '0')).replace('.', '')) if recs.get('cristal') else 0
+                c_enxofre += int(str(recs.get('enxofre', '0')).replace('.', '')) if recs.get('enxofre') else 0
+
+            lobby_madeira += c_madeira
+            lobby_vinho += c_vinho
+            lobby_marmore += c_marmore
+            lobby_cristal += c_cristal
+            lobby_enxofre += c_enxofre
+
+            structured_accounts.append({
+                'id': conta.id,
+                'servidor': conta.servidor,
+                'nome_usuario': conta.nome_usuario,
+                'ouro': ouro_val,
+                'ouro_texto': conta.ouro or '0',
+                'ouro_rendimento': conta.ouro_rendimento or '+0/h',
+                'madeira': c_madeira,
+                'vinho': c_vinho,
+                'marmore': c_marmore,
+                'cristal': c_cristal,
+                'enxofre': c_enxofre
+            })
+
+        total_ouro_geral += lobby_ouro
+        total_rendimento_geral += lobby_rendimento
+        total_madeira_geral += lobby_madeira
+        total_vinho_geral += lobby_vinho
+        total_marmore_geral += lobby_marmore
+        total_cristal_geral += lobby_cristal
+        total_enxofre_geral += lobby_enxofre
+
+        empire_data.append({
+            'lobby_id': lobby.id,
+            'nickname': lobby.nickname,
+            'email': lobby.email,
+            'ouro': lobby_ouro,
+            'ouro_rendimento': lobby_rendimento,
+            'madeira': lobby_madeira,
+            'vinho': lobby_vinho,
+            'marmore': lobby_marmore,
+            'cristal': lobby_cristal,
+            'enxofre': lobby_enxofre,
+            'contas': structured_accounts
+        })
+
+    rendimento_formatado = f"+{total_rendimento_geral:,}".replace(',', '.') if total_rendimento_geral >= 0 else f"{total_rendimento_geral:,}".replace(',', '.')
+
+    overall_totals = {
+        'ouro': total_ouro_geral,
+        'ouro_rendimento': rendimento_formatado,
+        'madeira': total_madeira_geral,
+        'vinho': total_vinho_geral,
+        'marmore': total_marmore_geral,
+        'cristal': total_cristal_geral,
+        'enxofre': total_enxofre_geral
+    }
+
     return render_template(
         'main/index.html',
         user=current_user,
         lobbies=lobbies,
         proxies=user_proxies_list,
-        user_proxies=user_proxies_list
+        user_proxies=user_proxies_list,
+        imperio_data=empire_data,
+        totais_gerais=overall_totals
     )
 
 
@@ -154,7 +277,8 @@ def lobbies_list():
 @user_active_required
 def create_lobby():
     user_proxies_list = Proxy.query.filter_by(user_id=current_user.id).all()
-    proxies_livres = [p for p in user_proxies_list if not p.is_in_use]
+    # Verifica proxies livres por LOBBY (proxy não associada a nenhum outro lobby)
+    proxies_livres = [p for p in user_proxies_list if not p.lobbies]
 
     if request.method == 'POST':
         nickname = request.form.get('nickname', '').strip()
@@ -167,7 +291,7 @@ def create_lobby():
             return redirect(url_for('main.index'))
 
         proxy = Proxy.query.filter_by(id=proxy_id, user_id=current_user.id).first()
-        if not proxy or proxy.is_in_use:
+        if not proxy or proxy.lobbies:
             flash("Proxy selecionada inválida ou já vinculada a outro lobby.", "danger")
             return redirect(url_for('main.index'))
 
@@ -216,7 +340,7 @@ def create_lobby():
         }
         session.modified = True
 
-        flash(f'Lobby "{nickname}" cadastrado com sucesso! Selecione a conta desejada na aba aberta.', "success")
+        flash(f'Lobby "{nickname}" cadastrado com sucesso! Selecione as contas desejadas na aba aberta.', "success")
         return redirect(url_for('main.index'))
 
     return render_template('main/create_lobby.html', user_proxies=proxies_livres)
@@ -226,36 +350,26 @@ def create_lobby():
 @login_required
 @user_active_required
 def save_selected_account():
-    """Mantém estritamente apenas a conta escolhida e remove permanentemente as restantes."""
     lobby_id = request.form.get('lobby_id', type=int)
-
-    conta_id_selecionada = request.form.get('conta_id', type=int)
-    if not conta_id_selecionada:
-        conta_id_selecionada = request.form.get('conta_index', type=int)
+    conta_ids_selecionadas = request.form.getlist('conta_ids', type=int)
 
     lobby = Lobby.query.filter_by(id=lobby_id, user_id=current_user.id).first_or_404()
-    contas_lobby = Conta.query.filter_by(lobby_id=lobby.id).all()
 
-    if conta_id_selecionada and contas_lobby:
-        if conta_id_selecionada < len(contas_lobby) and not any(c.id == conta_id_selecionada for c in contas_lobby):
-            conta_escolhida = contas_lobby[conta_id_selecionada]
-        else:
-            conta_escolhida = Conta.query.filter_by(id=conta_id_selecionada, lobby_id=lobby.id).first()
+    Conta.query.filter_by(lobby_id=lobby.id).update({'ativo': False}, synchronize_session=False)
 
-        if conta_escolhida:
-            Conta.query.filter(
-                Conta.lobby_id == lobby.id,
-                Conta.id != conta_escolhida.id
-            ).delete(synchronize_session=False)
+    if conta_ids_selecionadas:
+        Conta.query.filter(
+            Conta.lobby_id == lobby.id,
+            Conta.id.in_(conta_ids_selecionadas)
+        ).update({'ativo': True}, synchronize_session=False)
 
-            conta_escolhida.ativo = True
-            lobby.status = 'ATIVO'
-            db.session.commit()
+    lobby.status = 'ATIVO'
+    db.session.commit()
 
     session.pop('temp_selection_data', None)
     session.modified = True
 
-    flash(f'Conta configurada e ativada com sucesso para o lobby "{lobby.nickname}"!', 'success')
+    flash(f'Contas configuradas com sucesso para o lobby "{lobby.nickname}"!', 'success')
     return redirect(url_for('main.index'))
 
 
@@ -276,7 +390,10 @@ def edit_lobby(lobby_id):
 
     if proxy_id and proxy_id != lobby.proxy_id:
         novo_proxy = Proxy.query.filter_by(id=proxy_id, user_id=current_user.id).first()
-        if not novo_proxy or novo_proxy.is_in_use:
+        # Verifica se o proxy já está associado a outro lobby diferente do atual
+        proxy_em_uso_por_outro = any(l.id != lobby.id for l in novo_proxy.lobbies) if novo_proxy else True
+
+        if not novo_proxy or proxy_em_uso_por_outro:
             flash('Proxy selecionada inválida ou em uso por outro lobby.', 'danger')
             return redirect(url_for('main.index'))
 
@@ -340,7 +457,6 @@ def delete_lobby(lobby_id):
 @login_required
 @user_active_required
 def sync_lobby(lobby_id):
-    """Sincroniza automaticamente a conta existente no banco por ID ou Servidor/Nome."""
     lobby = Lobby.query.filter_by(id=lobby_id, user_id=current_user.id).first_or_404()
 
     try:
@@ -351,52 +467,10 @@ def sync_lobby(lobby_id):
             flash(f"Falha ao sincronizar: nenhuma conta detetada para '{lobby.nickname}'.", "warning")
             return redirect(url_for('main.index'))
 
-        conta_atual = Conta.query.filter_by(lobby_id=lobby.id, ativo=True).first()
-        if not conta_atual:
-            conta_atual = Conta.query.filter_by(lobby_id=lobby.id).first()
+        lobby.status = 'ATIVO'
+        db.session.commit()
 
-        match_encontrado = None
-        if conta_atual:
-            for acc in db_accounts:
-                match_id = (
-                    acc.get("gameforge_account_id") and conta_atual.gameforge_account_id and
-                    str(acc.get("gameforge_account_id")) == str(conta_atual.gameforge_account_id)
-                )
-                match_nome = (
-                    acc.get("servidor", "").strip().lower() == conta_atual.servidor.strip().lower() and
-                    acc.get("nome_usuario", "").strip().lower() == conta_atual.nome_usuario.strip().lower()
-                )
-
-                if match_id or match_nome:
-                    match_encontrado = acc
-                    break
-
-        if match_encontrado:
-            Conta.query.filter(
-                Conta.lobby_id == lobby.id,
-                Conta.id != match_encontrado["db_id"]
-            ).delete(synchronize_session=False)
-
-            conta_alvo = Conta.query.filter_by(id=match_encontrado["db_id"]).first()
-            if conta_alvo:
-                conta_alvo.ativo = True
-                conta_alvo.ultimo_login = get_brasilia_time()
-                if match_encontrado.get("gameforge_account_id"):
-                    conta_alvo.gameforge_account_id = match_encontrado.get("gameforge_account_id")
-
-            lobby.status = 'ATIVO'
-            db.session.commit()
-
-            flash(f"Lobby '{lobby.nickname}' sincronizado com sucesso (Conta: {match_encontrado['nome_usuario']} - {match_encontrado['servidor']})!", "success")
-        else:
-            session['temp_selection_data'] = {
-                'lobby_id': lobby.id,
-                'accounts': db_accounts,
-                'modo': 'sincronizacao'
-            }
-            session.modified = True
-            flash(f"A conta anterior não foi encontrada na varredura de '{lobby.nickname}'. Selecione a nova conta ativa.", "warning")
-
+        flash(f"Lobby '{lobby.nickname}' sincronizado com sucesso!", "success")
     except Exception as e:
         db.session.rollback()
         lobby.status = 'ERRO'
@@ -423,7 +497,7 @@ def varredura_geral_lobby(lobby_id):
         }
         session.modified = True
 
-        flash(f"Varredura geral realizada para '{lobby.nickname}'. Selecione a nova conta na aba aberta.", "info")
+        flash(f"Varredura geral realizada para '{lobby.nickname}'. Selecione as contas na aba aberta.", "info")
         return redirect(url_for('main.index'))
     except Exception as e:
         flash(f"Erro ao executar varredura geral: {str(e)}", "danger")
@@ -431,14 +505,217 @@ def varredura_geral_lobby(lobby_id):
 
 
 # ==========================================
-# NOVAS ROTAS DO PAINEL DA CONTA / SINCRONIZAÇÃO
+# ROTAS DO PAINEL DA CONTA / JOGO MANUAL
 # ==========================================
+
+@main_bp.route('/contas/<int:conta_id>/jogar-manual', methods=['POST'])
+@login_required
+@user_active_required
+def jogar_manual(conta_id):
+    conta = Conta.query.join(Lobby).filter(
+        Conta.id == conta_id,
+        Lobby.user_id == current_user.id
+    ).first_or_404()
+
+    if conta_id in ACTIVE_MANUAL_BROWSERS:
+        try:
+            ACTIVE_MANUAL_BROWSERS[conta_id].quit()
+        except:
+            pass
+        ACTIVE_MANUAL_BROWSERS.pop(conta_id, None)
+
+    lobby = conta.lobby
+    session_file = lobby.get_session_path()
+
+    cookies_list = []
+    local_storage_dict = {}
+
+    if os.path.exists(session_file):
+        try:
+            with open(session_file, "r", encoding="utf-8") as f:
+                data_json = json.load(f)
+
+            raw_cookies = data_json.get("cookies", [])
+            if isinstance(raw_cookies, str):
+                try:
+                    cookies_list = json.loads(raw_cookies)
+                except:
+                    cookies_list = []
+            elif isinstance(raw_cookies, list):
+                cookies_list = raw_cookies
+
+            formatted_cookies = []
+            for c in cookies_list:
+                cookie_item = {
+                    "name": c.get("name"),
+                    "value": c.get("value"),
+                    "domain": c.get("domain", ".gameforge.com"),
+                    "path": c.get("path", "/")
+                }
+                if "secure" in c:
+                    cookie_item["secure"] = c["secure"]
+                if "httpOnly" in c:
+                    cookie_item["httpOnly"] = c["httpOnly"]
+                if "expires" in c and isinstance(c["expires"], (int, float)):
+                    cookie_item["expires"] = c["expires"]
+                formatted_cookies.append(cookie_item)
+            cookies_list = formatted_cookies
+
+            raw_ls = data_json.get("localStorage", "{}")
+            if isinstance(raw_ls, str):
+                try:
+                    local_storage_dict = json.loads(raw_ls)
+                except:
+                    local_storage_dict = {}
+            elif isinstance(raw_ls, dict):
+                local_storage_dict = raw_ls
+
+        except Exception as err:
+            print(f"[Aviso Sessão Manual]: Erro ao processar ficheiro de sessão: {err}")
+
+    proxy_server = None
+    proxy_user = None
+    proxy_pass = None
+
+    if lobby.proxy:
+        proxy_server = f"http://{lobby.proxy.address}:{lobby.proxy.port}"
+        if lobby.proxy.username and lobby.proxy.get_password():
+            proxy_user = lobby.proxy.username
+            proxy_pass = lobby.proxy.get_password()
+
+    app_instance = current_app._get_current_object()
+
+    def run_manual_browser():
+        with app_instance.app_context():
+            p = None
+            browser = None
+            try:
+                p = sync_playwright().start()
+                browser = p.chromium.launch(headless=False, args=["--start-maximized"])
+
+                ACTIVE_MANUAL_BROWSERS[conta_id] = browser
+
+                proxy_config = None
+                if proxy_server:
+                    proxy_config = {"server": proxy_server}
+                    if proxy_user and proxy_pass:
+                        proxy_config["username"] = proxy_user
+                        proxy_config["password"] = proxy_pass
+
+                context_kwargs = {}
+                if proxy_config:
+                    context_kwargs["proxy"] = proxy_config
+
+                context = browser.new_context(**context_kwargs)
+
+                if cookies_list:
+                    try:
+                        context.add_cookies(cookies_list)
+                    except Exception as cookie_err:
+                        print(f"[Aviso Injeção Cookies]: {cookie_err}")
+
+                page = context.new_page()
+
+                if local_storage_dict:
+                    try:
+                        page.goto("https://lobby.ikariam.gameforge.com/", timeout=30000)
+                        page.evaluate("""(storage) => {
+                            for (let key in storage) {
+                                localStorage.setItem(key, storage[key]);
+                            }
+                        }""", local_storage_dict)
+                    except Exception as ls_err:
+                        print(f"[Aviso LocalStorage]: {ls_err}")
+
+                c_db = Conta.query.get(conta_id)
+                if c_db:
+                    c_db.is_playing_active = True
+                    db.session.commit()
+
+                page.goto("https://lobby.ikariam.gameforge.com/pt_BR/hub", timeout=45000, wait_until="domcontentloaded")
+
+                def limpar_sessao():
+                    with app_instance.app_context():
+                        c_close = Conta.query.get(conta_id)
+                        if c_close:
+                            c_close.is_playing_active = False
+                            db.session.commit()
+                    ACTIVE_MANUAL_BROWSERS.pop(conta_id, None)
+                    try:
+                        if browser:
+                            browser.close()
+                        if p:
+                            p.stop()
+                    except:
+                        pass
+
+                page.on("close", lambda: limpar_sessao())
+                context.on("close", lambda: limpar_sessao())
+
+                while browser.is_connected():
+                    import time
+                    time.sleep(1)
+
+            except Exception as e:
+                print(f"[Erro Jogo Manual]: {e}")
+            finally:
+                with app_instance.app_context():
+                    c_err = Conta.query.get(conta_id)
+                    if c_err:
+                        c_err.is_playing_active = False
+                        db.session.commit()
+                ACTIVE_MANUAL_BROWSERS.pop(conta_id, None)
+                try:
+                    if browser:
+                        browser.close()
+                    if p:
+                        p.stop()
+                except:
+                    pass
+
+    threading.Thread(target=run_manual_browser, daemon=True).start()
+
+    return jsonify({'success': True, 'message': 'Janela do jogo aberta com sucesso!'})
+
+
+@main_bp.route('/contas/<int:conta_id>/encerrar-manual', methods=['POST'])
+@login_required
+@user_active_required
+def encerrar_manual(conta_id):
+    conta = Conta.query.join(Lobby).filter(
+        Conta.id == conta_id,
+        Lobby.user_id == current_user.id
+    ).first_or_404()
+
+    if conta_id in ACTIVE_MANUAL_BROWSERS:
+        try:
+            ACTIVE_MANUAL_BROWSERS[conta_id].close()
+        except:
+            pass
+        ACTIVE_MANUAL_BROWSERS.pop(conta_id, None)
+
+    conta.is_playing_active = False
+    db.session.commit()
+
+    return jsonify({'success': True, 'message': 'Sessão manual encerrada com sucesso.'})
+
+
+@main_bp.route('/contas/<int:conta_id>/status-jogo', methods=['GET'])
+@login_required
+@user_active_required
+def status_jogo_conta(conta_id):
+    conta = Conta.query.join(Lobby).filter(
+        Conta.id == conta_id,
+        Lobby.user_id == current_user.id
+    ).first_or_404()
+
+    return jsonify({'is_playing_active': conta.is_playing_active})
+
 
 @main_bp.route('/contas/<int:conta_id>/sincronizar-painel', methods=['POST'])
 @login_required
 @user_active_required
 def sincronizar_painel_conta(conta_id):
-    """Executa o login via bot, extrai os dados do império e atualiza a conta no banco."""
     conta = Conta.query.join(Lobby).filter(
         Conta.id == conta_id,
         Lobby.user_id == current_user.id
@@ -462,7 +739,8 @@ def sincronizar_painel_conta(conta_id):
 
             return jsonify({'success': True, 'message': 'Dados sincronizados com sucesso!'})
         else:
-            return jsonify({'success': False, 'message': 'O bot conectou, mas falhou ao recolher os dados da página.'}), 500
+            return jsonify(
+                {'success': False, 'message': 'O bot conectou, mas falhou ao recolher os dados da página.'}), 500
 
     except Exception as e:
         db.session.rollback()
@@ -473,7 +751,6 @@ def sincronizar_painel_conta(conta_id):
 @login_required
 @user_active_required
 def get_dados_painel_conta(conta_id):
-    """Retorna os dados salvos no banco para renderizar o painel instantaneamente."""
     conta = Conta.query.join(Lobby).filter(
         Conta.id == conta_id,
         Lobby.user_id == current_user.id
@@ -488,13 +765,11 @@ def get_dados_painel_conta(conta_id):
         'barcos_disponiveis': conta.barcos_disponiveis,
         'recursos_imperio': json.loads(conta.recursos_imperio or '{}'),
         'cidades': json.loads(conta.cidades_detalhes or '[]'),
-        'ultima_sincronizacao': conta.ultima_sincronizacao.strftime('%d/%m/%Y %H:%M') if conta.ultima_sincronizacao else 'Nunca'
+        'ultima_sincronizacao': conta.ultima_sincronizacao.strftime(
+            '%d/%m/%Y %H:%M') if conta.ultima_sincronizacao else 'Nunca',
+        'is_playing_active': conta.is_playing_active
     })
 
-
-# ==========================================
-# ROTAS DE POLLING E CONTROLE INDIVIDUAL
-# ==========================================
 
 @main_bp.route('/api/lobbies/status', methods=['GET'])
 @login_required
@@ -521,6 +796,7 @@ def get_lobbies_status():
                     'pais': conta.pais.upper() if conta.pais else '',
                     'nome_usuario': conta.nome_usuario,
                     'ativo': conta.ativo,
+                    'status_jogo': conta.status_jogo,
                     'automacao_ativa': conta.automacao_ativa,
                     'dias_sem_login': conta.dias_sem_login,
                     'ultimo_login': conta.ultimo_login.strftime('%d/%m/%Y %H:%M') if conta.ultimo_login else None

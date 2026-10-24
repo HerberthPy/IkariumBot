@@ -25,11 +25,23 @@ class AccountsScraperTask:
                                 server_number = str(item.get("server", {}).get("number", ""))
                                 friendly_world_name = get_world_name(server_number)
 
+                                # Identifica o status real retornado pela Gameforge (bloqueada, banida, ativa, etc.)
+                                status_raw = item.get("status") or item.get("accountStatus") or ""
+                                is_blocked = item.get("blocked") or item.get("banned") or False
+
+                                if is_blocked:
+                                    status_jogo = "Bloqueada"
+                                elif status_raw:
+                                    status_jogo = str(status_raw).capitalize()
+                                else:
+                                    status_jogo = "Ativa"
+
                                 raw_accounts.append({
                                     "gameforge_account_id": item.get("id"),
                                     "servidor": friendly_world_name,
                                     "pais": item.get("server", {}).get("language", "pt"),
                                     "nome_usuario": item.get("name", lobby.nickname),
+                                    "status_jogo": status_jogo,
                                     "ativo": False
                                 })
             except Exception:
@@ -90,6 +102,7 @@ class AccountsScraperTask:
                     servidor_nome = acc.get("servidor")
                     nome_user = acc.get("nome_usuario")
                     gf_id = acc.get("gameforge_account_id")
+                    status_capturado = acc.get("status_jogo", "Ativa")
 
                     if not servidor_nome or not nome_user:
                         continue
@@ -108,10 +121,10 @@ class AccountsScraperTask:
                             pais=acc.get("pais", "pt"),
                             nome_usuario=nome_user,
                             email=lobby_db.email,
-                    # Corrigido para garantir que o BD receba dados válidos
                             ativo=False,
                             automacao_ativa=False,
-                            ultimo_login=agora_brasilia
+                            ultimo_login=agora_brasilia,
+                            status_jogo=status_capturado
                         )
                         db.session.add(nova_conta)
                         db.session.flush()
@@ -119,6 +132,7 @@ class AccountsScraperTask:
                     else:
                         conta_obj = conta_existente
                         conta_obj.ultimo_login = agora_brasilia
+                        conta_obj.status_jogo = status_capturado  # Atualiza o status caso tenha mudado
 
                     enriched_accounts.append({
                         "db_id": conta_obj.id,

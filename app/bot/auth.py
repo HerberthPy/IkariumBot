@@ -3,6 +3,8 @@
 import os
 import json
 import time
+from app import db
+from app.models import LobbyIPHistory, get_brasilia_time
 
 SESSIONS_DIR = "sessions"
 if not os.path.exists(SESSIONS_DIR):
@@ -67,6 +69,43 @@ class AuthManager:
         print(f"[Auth] Sessão do cliente gravada com sucesso para o Lobby #{lobby_id}!")
 
     @classmethod
+    def verify_and_record_ip(cls, lobby, external_ip):
+        """
+        Verifica se o IP externo atual já foi utilizado por OUTRO lobby no histórico.
+        Se sim, bloqueia o login. Se não, regista o IP no histórico deste lobby caso seja novo.
+        """
+        if not external_ip or external_ip == "Desconhecido":
+            return
+
+        # Verifica se o IP já pertence ao histórico de outro lobby diferente
+        existing_record = LobbyIPHistory.query.filter(
+            LobbyIPHistory.ip_address == external_ip,
+            LobbyIPHistory.lobby_id != lobby.id
+        ).first()
+
+        if existing_record:
+            raise Exception(
+                f"[SEGURANÇA BLOQUEADA] O IP {external_ip} já foi utilizado anteriormente pelo Lobby ID #{existing_record.lobby_id}. "
+                f"Por favor, troque o proxy da conta '{lobby.nickname}' (#{lobby.id}) para evitar conflito de IPs entre contas diferentes."
+            )
+
+        # Regista o IP no histórico deste lobby caso ainda não conste
+        my_record = LobbyIPHistory.query.filter_by(
+            lobby_id=lobby.id,
+            ip_address=external_ip
+        ).first()
+
+        if not my_record:
+            new_history = LobbyIPHistory(
+                lobby_id=lobby.id,
+                ip_address=external_ip,
+                recorded_at=get_brasilia_time()
+            )
+            db.session.add(new_history)
+            db.session.commit()
+            print(f"[Auth] Novo IP {external_ip} associado e guardado no histórico do Lobby #{lobby.id}.")
+
+    @classmethod
     def get_authenticated_context(cls, browser, lobby, proxy_config=None):
         session_file = cls.get_session_file_path(lobby.id)
         cookies = []
@@ -93,22 +132,49 @@ class AuthManager:
 
         # Configuração estruturada e compatível do Proxy para o Playwright
         playwright_proxy = None
+        proxy_address_str = "Sem Proxy"
         if proxy_config:
             playwright_proxy = proxy_config
+            proxy_address_str = proxy_config.get("server", "Personalizado")
         elif lobby.proxy:
             addr = lobby.proxy.address
             port = lobby.proxy.port
             pwd = lobby.proxy.get_password()
+            proxy_address_str = f"{addr}:{port}"
 
             playwright_proxy = {
-                "server": f"http://{addr}:{port}"
+                "server": f"http://{proxy_address_str}"
             }
             if lobby.proxy.username and pwd:
                 playwright_proxy["username"] = lobby.proxy.username
                 playwright_proxy["password"] = pwd
 
-        print(f"[Auth] Restaurando sessão com Proxy para '{lobby.nickname}'...")
+        proxy_id_str = f"#{lobby.proxy.id}" if lobby.proxy else 'Sem Proxy'
+        print(f"[Auth] Restaurando sessão com Proxy {proxy_id_str} ({proxy_address_str}) para '{lobby.nickname}'...")
         proxy_context = browser.new_context(proxy=playwright_proxy)
+
+        # Verifica o IP externo utilizando a nova página de contexto da proxy
+        temp_ip_page = proxy_context.new_page()
+        external_ip = "Desconhecido"
+        try:
+            temp_ip_page.goto("https://api.ipify.org?format=json", timeout=15000)
+            ip_data = temp_ip_page.inner_text("body")
+            external_ip = json.loads(ip_data).get("ip", "Desconhecido")
+            print(f"[Auth] -> IP Externo verificado via Proxy {proxy_id_str}: {external_ip}")
+        except Exception as ip_err:
+            print(f"[Auth AVISO] Não foi possível verificar o IP externo via API: {ip_err}")
+        finally:
+            try:
+                temp_ip_page.close()
+            except:
+                pass
+
+        # Valida se o IP atual ou histórico já pertence a outra conta
+        try:
+            cls.verify_and_record_ip(lobby, external_ip)
+        except Exception as sec_err:
+            proxy_context.close()
+            raise sec_err
 
         # Injeta cookies formatados no contexto
         formatted_cookies = cls._format_cookies_for_playwright(cookies)
@@ -119,7 +185,6 @@ class AuthManager:
 
         # Tenta conectar ao Ikariam com timeout estendido e otimizado para proxies
         try:
-            proxy_id_str = f"#{lobby.proxy.id}" if lobby.proxy else 'Sem Proxy'
             print(f"[Auth] Conectando ao Ikariam através da Proxy {proxy_id_str}...")
             page.goto("https://lobby.ikariam.gameforge.com/pt_BR/", timeout=45000, wait_until="commit")
         except Exception as conn_err:
