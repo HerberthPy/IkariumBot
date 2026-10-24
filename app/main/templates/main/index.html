@@ -430,8 +430,8 @@
           <h5 class="fw-bold mb-0 text-primary"><i class="bi bi-shield-shaded me-2"></i>Consolidado do Império (Geral)</h5>
           <span class="small text-secondary fw-semibold"><i class="bi bi-eye me-1"></i> Clique para ver detalhes por lobby</span>
         </div>
-        <div class="row text-center g-3 py-2 bg-body rounded-3 border align-items-center justify-content-around">
-          <div class="col-auto d-flex align-items-center gap-2">
+        <div class="d-flex flex-wrap justify-content-around align-items-center gap-3 py-2 bg-body rounded-3 border px-3 text-center">
+          <div class="d-flex align-items-center gap-2">
             <img src="{{ url_for('static', filename='img/finances.png') }}" alt="Ouro" style="width: 28px; height: 28px;">
             <div class="text-start">
               <div class="fw-bold small">
@@ -440,23 +440,23 @@
               </div>
             </div>
           </div>
-          <div class="col-auto d-flex align-items-center gap-1">
+          <div class="d-flex align-items-center gap-1">
             <img src="{{ url_for('static', filename='img/icon_wood.png') }}" style="width: 20px; height: 20px;">
             <span class="fw-bold small">{{ "{:,.0f}".format(totais_gerais.madeira).replace(',', '.') }}</span>
           </div>
-          <div class="col-auto d-flex align-items-center gap-1">
+          <div class="d-flex align-items-center gap-1">
             <img src="{{ url_for('static', filename='img/icon_wine.png') }}" style="width: 20px; height: 20px;">
             <span class="fw-bold small">{{ "{:,.0f}".format(totais_gerais.vinho).replace(',', '.') }}</span>
           </div>
-          <div class="col-auto d-flex align-items-center gap-1">
+          <div class="d-flex align-items-center gap-1">
             <img src="{{ url_for('static', filename='img/icon_marble.png') }}" style="width: 20px; height: 20px;">
             <span class="fw-bold small">{{ "{:,.0f}".format(totais_gerais.marmore).replace(',', '.') }}</span>
           </div>
-          <div class="col-auto d-flex align-items-center gap-1">
+          <div class="d-flex align-items-center gap-1">
             <img src="{{ url_for('static', filename='img/icon_glass.png') }}" style="width: 20px; height: 20px;">
             <span class="fw-bold small">{{ "{:,.0f}".format(totais_gerais.cristal).replace(',', '.') }}</span>
           </div>
-          <div class="col-auto d-flex align-items-center gap-1">
+          <div class="d-flex align-items-center gap-1">
             <img src="{{ url_for('static', filename='img/icon_sulfur.png') }}" style="width: 20px; height: 20px;">
             <span class="fw-bold small">{{ "{:,.0f}".format(totais_gerais.enxofre).replace(',', '.') }}</span>
           </div>
@@ -594,7 +594,7 @@
                 <td class="pe-4 py-3 text-end">
                   {% if proxy.lobbies %}
                     {% for lobby in proxy.lobbies %}<span class="badge bg-primary-subtle text-primary border rounded-pill px-3 py-1.5 fw-semibold">{{ lobby.nickname }}</span>{% endfor %}
-                  {% else %}<span class="badge bg-success-subtle border rounded-pill px-3 py-1 fw-semibold">Disponível</span>{% endif %}
+                  {% else %}<span class="badge bg-success-subtle text-success border rounded-pill px-3 py-1 fw-semibold">Disponível</span>{% endif %}
                 </td>
               </tr>
               {% endfor %}
@@ -753,6 +753,7 @@
 
     const conteudoPainel = `
       <div class="col-12 py-3">
+        <!-- HEADER DA CONTA -->
         <div class="card border-0 shadow-sm rounded-4 p-3 mb-4 bg-body-tertiary border-top border-warning border-4">
           <div class="d-flex flex-column flex-md-row justify-content-between align-items-md-center gap-3">
             <div>
@@ -768,19 +769,72 @@
               </button>
             </div>
           </div>
-
-          <hr class="text-secondary opacity-25 my-3">
-
-          <div class="row text-center g-3 py-2 bg-body rounded-3 border align-items-center justify-content-around" id="header-recursos-${contaId}">
-            <div class="col-auto"><span class="text-secondary small">A carregar recursos...</span></div>
-          </div>
         </div>
 
-        <div class="card border-0 shadow-sm rounded-4 p-4 bg-body-tertiary">
-          <h6 class="fw-bold mb-3 text-secondary"><i class="bi bi-buildings me-2"></i>Cidades do Império & População</h6>
-          <div id="lista-cidades-container-${contaId}">
-            <p class="text-secondary small text-center py-4">Clique em "Atualizar Dados" para carregar as informações.</p>
+        <!-- SUB-ABAS DE NAVEGAÇÃO DA CONTA (RECURSOS, MILITAR, AUTOMAÇÃO) -->
+        <div class="mb-4 border-bottom pb-3">
+          <ul class="nav d-flex flex-row gap-2 m-0 p-0 list-unstyled" id="subTabs-${contaId}">
+            <li class="nav-item">
+              <button class="btn btn-primary fw-semibold px-4 py-2 shadow-sm d-flex align-items-center sub-conta-btn active" id="subtab-recursos-${contaId}" onclick="switchSubContaTab('pane-recursos-${contaId}', this)">
+                <i class="bi bi-boxes me-2"></i> Recursos
+              </button>
+            </li>
+            <li class="nav-item">
+              <button class="btn btn-outline-secondary fw-semibold px-4 py-2 shadow-sm d-flex align-items-center sub-conta-btn" id="subtab-militar-${contaId}" onclick="switchSubContaTab('pane-militar-${contaId}', this)">
+                <i class="bi bi-shield-fill-exclamation me-2"></i> Militar
+              </button>
+            </li>
+            <li class="nav-item">
+              <button class="btn btn-outline-secondary fw-semibold px-4 py-2 shadow-sm d-flex align-items-center sub-conta-btn" id="subtab-automacao-${contaId}" onclick="switchSubContaTab('pane-automacao-${contaId}', this)">
+                <i class="bi bi-robot me-2"></i> Automação
+              </button>
+            </li>
+          </ul>
+        </div>
+
+        <!-- CONTEÚDO DAS SUB-ABAS -->
+        <div id="subTabsContent-${contaId}">
+
+          <!-- SUB-ABA 1: RECURSOS -->
+          <div id="pane-recursos-${contaId}" class="sub-conta-pane">
+            <div class="card border-0 shadow-sm rounded-4 p-3 mb-4 bg-body-tertiary">
+              <div class="d-flex flex-wrap justify-content-around align-items-center gap-3 py-2 px-3 bg-body rounded-3 border text-center" id="header-recursos-${contaId}">
+                <div><span class="text-secondary small">A carregar recursos...</span></div>
+              </div>
+            </div>
+
+            <div class="card border-0 shadow-sm rounded-4 p-4 bg-body-tertiary">
+              <h6 class="fw-bold mb-3 text-secondary"><i class="bi bi-buildings me-2"></i>Cidades do Império & População</h6>
+              <div id="lista-cidades-container-${contaId}">
+                <p class="text-secondary small text-center py-4">Clique em "Atualizar Dados" para carregar as informações.</p>
+              </div>
+            </div>
           </div>
+
+          <!-- SUB-ABA 2: MILITAR -->
+          <div id="pane-militar-${contaId}" class="sub-conta-pane d-none">
+            <div class="card border-0 shadow-sm rounded-4 p-4 text-center bg-body-tertiary">
+              <div class="py-5">
+                <i class="bi bi-shield-fill-exclamation display-4 text-secondary mb-3 d-block"></i>
+                <h4 class="text-secondary fw-bold">Módulo Militar</h4>
+                <p class="text-muted">Painel de tropas, unidades estacionadas, frotas em missão e relatório de combate em breve.</p>
+              </div>
+            </div>
+          </div>
+
+          <!-- SUB-ABA 3: AUTOMAÇÃO -->
+          <div id="pane-automacao-${contaId}" class="sub-conta-pane d-none">
+            <div class="card border-0 shadow-sm rounded-4 p-4 bg-body-tertiary">
+              <h4 class="fw-bold mb-3"><i class="bi bi-robot me-2 text-primary"></i> Configurações de Automação</h4>
+              <p class="text-muted">Gerencie os comportamentos automáticos e tarefas agendadas para esta conta específica.</p>
+              <hr class="text-secondary opacity-25">
+              <div class="form-check form-switch fs-5 mb-3">
+                <input class="form-check-input" type="checkbox" id="autoSyncCheck-${contaId}" onchange="toggleAutomacaoConta(${contaId})">
+                <label class="form-check-label fs-6 fw-semibold" for="autoSyncCheck-${contaId}">Sincronização e Coleta Automática</label>
+              </div>
+            </div>
+          </div>
+
         </div>
       </div>
     `;
@@ -789,14 +843,42 @@
     carregarDadosPainelConta(contaId);
   }
 
+  function switchSubContaTab(targetPaneId, clickedBtn) {
+    const parentContainer = clickedBtn.closest('.col-12');
+
+    parentContainer.querySelectorAll('.sub-conta-pane').forEach(pane => pane.classList.add('d-none'));
+    const targetPane = parentContainer.querySelector(`#${targetPaneId}`);
+    if (targetPane) targetPane.classList.remove('d-none');
+
+    parentContainer.querySelectorAll('.sub-conta-btn').forEach(btn => {
+      btn.classList.remove('btn-primary', 'active');
+      btn.classList.add('btn-outline-secondary');
+    });
+    clickedBtn.classList.remove('btn-outline-secondary');
+    clickedBtn.classList.add('btn-primary', 'active');
+  }
+
   function carregarDadosPainelConta(contaId) {
     fetch(`/contas/${contaId}/dados-painel`)
       .then(res => res.json())
       .then(data => {
         atualizarUIEstatisticasConta(contaId, data);
         atualizarBotaoJogarUI(contaId, data.is_playing_active);
+        const autoCheck = document.getElementById(`autoSyncCheck-${contaId}`);
+        if (autoCheck) autoCheck.checked = data.automacao_ativa;
       })
       .catch(err => console.error("Erro ao carregar painel:", err));
+  }
+
+  function toggleAutomacaoConta(contaId) {
+    fetch(`/contas/${contaId}/toggle-automacao`, { method: 'POST' })
+      .then(res => res.json())
+      .then(data => {
+        if (!data.success) {
+          alert("Erro ao alterar automação.");
+        }
+      })
+      .catch(err => console.error("Erro de conexão:", err));
   }
 
   function jogarManual(contaId) {
@@ -910,38 +992,38 @@
     const iconPopulation = "{{ url_for('static', filename='img/icon_population.png') }}";
 
     const headerHtml = `
-      <div class="col-auto d-flex align-items-center gap-2" title="Ouro e Rendimento">
-        <img src="${iconGold}" alt="Ouro" style="width: 28px; height: 28px;">
+      <div class="d-flex align-items-center gap-2" title="Ouro e Rendimento">
+        <img src="${iconGold}" alt="Ouro" style="width: 26px; height: 26px;">
         <div class="text-start">
           <div class="fw-bold small">${data.ouro || '0'}</div>
           <div class="text-success extra-small" style="font-size: 0.7rem;">${data.ouro_rendimento || '+0/h'}</div>
         </div>
       </div>
-      <div class="col-auto d-flex align-items-center gap-2" title="Barcos de Transporte">
-        <img src="${iconTransporter}" alt="Barcos" style="width: 24px; height: 24px;">
+      <div class="d-flex align-items-center gap-2" title="Barcos de Transporte">
+        <img src="${iconTransporter}" alt="Barcos" style="width: 22px; height: 22px;">
         <div class="text-start">
           <div class="fw-bold small">${data.barcos_disponiveis || 0} / ${data.barcos_totais || 0}</div>
           <div class="text-secondary extra-small" style="font-size: 0.7rem;">Barcos</div>
         </div>
       </div>
-      <div class="col-auto d-flex align-items-center gap-1" title="Madeira">
-        <img src="${iconWood}" alt="Madeira" style="width: 20px; height: 20px;">
+      <div class="d-flex align-items-center gap-1" title="Madeira">
+        <img src="${iconWood}" alt="Madeira" style="width: 18px; height: 18px;">
         <span class="fw-bold small">${totalMadeira}</span>
       </div>
-      <div class="col-auto d-flex align-items-center gap-1" title="Vinho">
-        <img src="${iconWine}" alt="Vinho" style="width: 20px; height: 20px;">
+      <div class="d-flex align-items-center gap-1" title="Vinho">
+        <img src="${iconWine}" alt="Vinho" style="width: 18px; height: 18px;">
         <span class="fw-bold small">${totalVinho}</span>
       </div>
-      <div class="col-auto d-flex align-items-center gap-1" title="Mármore">
-        <img src="${iconMarble}" alt="Mármore" style="width: 20px; height: 20px;">
+      <div class="d-flex align-items-center gap-1" title="Mármore">
+        <img src="${iconMarble}" alt="Mármore" style="width: 18px; height: 18px;">
         <span class="fw-bold small">${totalMarmore}</span>
       </div>
-      <div class="col-auto d-flex align-items-center gap-1" title="Cristal">
-        <img src="${iconGlass}" alt="Cristal" style="width: 20px; height: 20px;">
+      <div class="d-flex align-items-center gap-1" title="Cristal">
+        <img src="${iconGlass}" alt="Cristal" style="width: 18px; height: 18px;">
         <span class="fw-bold small">${totalCristal}</span>
       </div>
-      <div class="col-auto d-flex align-items-center gap-1" title="Enxofre">
-        <img src="${iconSulfur}" alt="Enxofre" style="width: 20px; height: 20px;">
+      <div class="d-flex align-items-center gap-1" title="Enxofre">
+        <img src="${iconSulfur}" alt="Enxofre" style="width: 18px; height: 18px;">
         <span class="fw-bold small">${totalEnxofre}</span>
       </div>
     `;

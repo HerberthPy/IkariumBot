@@ -277,7 +277,6 @@ def lobbies_list():
 @user_active_required
 def create_lobby():
     user_proxies_list = Proxy.query.filter_by(user_id=current_user.id).all()
-    # Verifica proxies livres por LOBBY (proxy não associada a nenhum outro lobby)
     proxies_livres = [p for p in user_proxies_list if not p.lobbies]
 
     if request.method == 'POST':
@@ -390,7 +389,6 @@ def edit_lobby(lobby_id):
 
     if proxy_id and proxy_id != lobby.proxy_id:
         novo_proxy = Proxy.query.filter_by(id=proxy_id, user_id=current_user.id).first()
-        # Verifica se o proxy já está associado a outro lobby diferente do atual
         proxy_em_uso_por_outro = any(l.id != lobby.id for l in novo_proxy.lobbies) if novo_proxy else True
 
         if not novo_proxy or proxy_em_uso_por_outro:
@@ -767,7 +765,8 @@ def get_dados_painel_conta(conta_id):
         'cidades': json.loads(conta.cidades_detalhes or '[]'),
         'ultima_sincronizacao': conta.ultima_sincronizacao.strftime(
             '%d/%m/%Y %H:%M') if conta.ultima_sincronizacao else 'Nunca',
-        'is_playing_active': conta.is_playing_active
+        'is_playing_active': conta.is_playing_active,
+        'automacao_ativa': conta.automacao_ativa
     })
 
 

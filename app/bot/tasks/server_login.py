@@ -1,6 +1,7 @@
 # app/bot/tasks/server_login.py
 
 import time
+import re
 from flask import current_app
 from app import db
 from app.models import Conta, Lobby, get_brasilia_time
@@ -12,8 +13,8 @@ class ServerLoginTask:
     @staticmethod
     def run_and_get_info(lobby_id, conta_id):
         """
-        Faz o login estritamente na conta ativa do lobby utilizando a sessão e o proxy correspondentes,
-        executa a extração de informações da conta e retorna o resultado.
+        Faz o login estritamente na conta ativa do lobby utilizando a estrutura exata
+        da tabela React do lobby da GameForge (div.rt-tr-group).
         """
         app = current_app._get_current_object()
 
@@ -32,7 +33,7 @@ class ServerLoginTask:
 
             from playwright.sync_api import sync_playwright
             with sync_playwright() as p:
-                browser = p.chromium.launch(headless=False) # Mude para False se quiser ver o navegador a abrir visualmente
+                browser = p.chromium.launch(headless=False)  # Mude para True se quiser rodar oculto
                 game_page = None
                 context = None
 
@@ -41,32 +42,67 @@ class ServerLoginTask:
                     context, page = AuthManager.get_authenticated_context(browser, lobby, proxy_config=None)
 
                     # Navega diretamente para a lista de contas no Hub do Ikariam
-                    page.goto("https://lobby.ikariam.gameforge.com/pt_BR/accounts", timeout=30000, wait_until="domcontentloaded")
-                    page.wait_for_timeout(2000)
+                    page.goto("https://lobby.ikariam.gameforge.com/pt_BR/accounts", timeout=30000,
+                              wait_until="domcontentloaded")
 
-                    # Localiza a linha do jogador na tabela de contas
-                    row = page.locator("tr").filter(has_text=conta.nome_usuario).first
+                    # Aguarda a tabela React carregar completamente na tela
+                    print(f"[Server Login] Aguardando renderização da tabela React de contas...")
                     try:
-                        row.wait_for(state="visible", timeout=5000)
+                        page.wait_for_selector("div.rt-tr-group", timeout=10000)
                     except Exception:
                         pass
+                    page.wait_for_timeout(2000)
 
-                    # Localiza o botão "Jogar" correspondente à conta
-                    play_button = row.locator("button, a").filter(
-                        has_text="Jogar"
-                    ).or_(
-                        row.locator("button, a").filter(has_text="Play")
-                    ).first
+                    play_button = None
+                    target_user = str(conta.nome_usuario).strip().lower()
+                    target_server = str(conta.servidor).strip().lower()
 
-                    if not play_button.is_visible(timeout=4000):
-                        play_button = page.locator("button, a").filter(
-                            has_text="Jogar"
-                        ).or_(
-                            page.locator("button, a").filter(has_text="Play")
-                        ).first
+                    print(
+                        f"[Server Login] Procurando linha da conta: Servidor='{target_server}', Utilizador='{target_user}'...")
 
-                    if not play_button.is_visible(timeout=4000):
-                        print(f"[Server Login AVISO] Botão 'Jogar' não encontrado para a conta {conta.nome_usuario}.")
+                    # Pega todas as linhas da tabela React (.rt-tr-group)
+                    rows = page.locator("div.rt-tr-group").all()
+
+                    for row in rows:
+                        try:
+                            # Extrai o texto da célula do servidor e do jogador dentro desta linha específica
+                            server_elem = row.locator("div.server-name-cell").inner_text().strip().lower()
+                            player_elem = row.locator("div.player-cell").inner_text().strip().lower()
+
+                            # Verifica se ambos conferem exatamente com a conta alvo
+                            if target_server in server_elem and target_user in player_elem:
+                                # Encontrou a linha exata! Agora localiza o botão "Jogar" na célula de ação (`action-cell`)
+                                btn = row.locator("div.action-cell button, div.action-cell a").filter(
+                                    has_text=re.compile("Jogar|Play", re.IGNORECASE)).first
+                                if btn.is_visible(timeout=500):
+                                    play_button = btn
+                                    print(
+                                        f"[Server Login SUCESSO] Linha e botão 'Jogar' isolados com precisão para {conta.nome_usuario} ({conta.servidor})!")
+                                    break
+                        except Exception:
+                            continue
+
+                    # Fallback caso os seletores específicos de células mudem: varredura genérica de texto na linha
+                    if not play_button or not play_button.is_visible(timeout=500):
+                        print(
+                            f"[Server Login AVISO] Busca por células específicas falhou. Tentando varredura geral de texto nas linhas...")
+                        for row in rows:
+                            try:
+                                row_text = row.inner_text().lower()
+                                if target_server in row_text and target_user in row_text:
+                                    btn = row.locator("button, a").filter(
+                                        has_text=re.compile("Jogar|Play", re.IGNORECASE)).first
+                                    if btn.is_visible(timeout=500):
+                                        play_button = btn
+                                        print(
+                                            f"[Server Login SUCESSO] Botão encontrado na varredura geral de texto da linha!")
+                                        break
+                            except Exception:
+                                continue
+
+                    if not play_button or not play_button.is_visible(timeout=4000):
+                        print(
+                            f"[Server Login ERRO] Botão 'Jogar' não pôde ser encontrado na tabela para a conta {conta.nome_usuario} ({conta.servidor}).")
                         return False, None
 
                     # Clica para abrir a nova aba do servidor do jogo
@@ -75,7 +111,8 @@ class ServerLoginTask:
 
                     game_page = new_page_info.value
 
-                    print(f"[Server Login] Aguardando carregamento do jogo para {conta.nome_usuario}...")
+                    print(
+                        f"[Server Login] Aguardando carregamento do jogo para {conta.nome_usuario} ({conta.servidor})...")
 
                     try:
                         game_page.wait_for_url(
