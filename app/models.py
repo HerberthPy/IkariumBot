@@ -174,6 +174,15 @@ class Conta(db.Model):
     automacao_ativa = db.Column(db.Boolean, default=False, nullable=False)  # Se a automação deve rodar nesta conta
     ultimo_login = db.Column(db.DateTime, nullable=True)  # Data e hora do último acesso pelo bot
 
+    # Novos campos para exibição no painel da conta
+    ouro = db.Column(db.String(50), default="0")
+    ouro_rendimento = db.Column(db.String(50), default="+0/h")
+    barcos_totais = db.Column(db.Integer, default=0)
+    barcos_disponiveis = db.Column(db.Integer, default=0)
+    recursos_imperio = db.Column(db.Text, default="{}")
+    cidades_detalhes = db.Column(db.Text, default="[]")
+    ultima_sincronizacao = db.Column(db.DateTime, nullable=True)
+
     created_at = db.Column(db.DateTime, default=get_brasilia_time)
 
     # Chave estrangeira vinculando a conta ao Lobby

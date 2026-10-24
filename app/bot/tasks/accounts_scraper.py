@@ -12,7 +12,7 @@ from playwright.sync_api import sync_playwright
 class AccountsScraperTask:
     @classmethod
     def run_sync_for_lobby(cls, lobby):
-        """Abre o navegador Playwright de forma síncrona (SEM PROXY), captura as contas no Hub e persiste no BD."""
+        """Abre o navegador Playwright, captura as contas no Hub e persiste no BD como inativas."""
         raw_accounts = []
 
         def handle_response(response):
@@ -30,7 +30,7 @@ class AccountsScraperTask:
                                     "servidor": friendly_world_name,
                                     "pais": item.get("server", {}).get("language", "pt"),
                                     "nome_usuario": item.get("name", lobby.nickname),
-                                    "ativo": not item.get("blocked", False)
+                                    "ativo": False
                                 })
             except Exception:
                 pass
@@ -50,7 +50,6 @@ class AccountsScraperTask:
             proxy_context.close()
             browser.close()
 
-        # Deduplica as contas capturadas com base no gameforge_account_id ou (servidor + nome_usuario)
         unique_accounts = {}
         for acc in raw_accounts:
             key = acc.get("gameforge_account_id") or f"{acc.get('servidor')}_{acc.get('nome_usuario')}"
@@ -58,16 +57,19 @@ class AccountsScraperTask:
 
         captured_accounts = list(unique_accounts.values())
 
+        db_accounts_list = []
         if captured_accounts:
-            cls.save_to_db(lobby, captured_accounts)
+            db_accounts_list = cls.save_to_db(lobby, captured_accounts)
 
-        return captured_accounts
+        return db_accounts_list
 
     @staticmethod
     def save_to_db(lobby, captured_accounts):
-        print(f"[Task Scraper] Iniciando gravação de {len(captured_accounts)} conta(s) unicas no Banco de Dados...")
+        print(f"[Task Scraper] Iniciando gravação de {len(captured_accounts)} conta(s) no Banco de Dados...")
 
         app = current_app._get_current_object()
+        enriched_accounts = []
+
         with app.app_context():
             try:
                 lobby_db = db.session.get(Lobby, lobby.id)
@@ -76,28 +78,14 @@ class AccountsScraperTask:
 
                 agora_brasilia = get_brasilia_time()
 
-                # 1. Coleta todos os IDs da Gameforge encontrados e limpos agora
-                ids_capturados = [acc.get("gameforge_account_id") for acc in captured_accounts if
-                                  acc.get("gameforge_account_id")]
+                ids_capturados = [acc.get("gameforge_account_id") for acc in captured_accounts if acc.get("gameforge_account_id")]
 
-                # 2. Remove do banco contas deste lobby que não vieram na sincronização atual
                 if ids_capturados:
                     Conta.query.filter(
                         Conta.lobby_id == lobby_db.id,
                         ~Conta.gameforge_account_id.in_(ids_capturados)
                     ).delete(synchronize_session=False)
 
-                # 3. Limpeza preventiva de eventuais duplicadas já existentes no SQLite
-                todas_contas_db = Conta.query.filter_by(lobby_id=lobby_db.id).all()
-                vistos = set()
-                for c in todas_contas_db:
-                    chave = (c.gameforge_account_id, c.servidor, c.nome_usuario)
-                    if chave in vistos:
-                        db.session.delete(c)
-                    else:
-                        vistos.add(chave)
-
-                # 4. Insere ou atualiza as contas atuais de forma rigorosa
                 for acc in captured_accounts:
                     servidor_nome = acc.get("servidor")
                     nome_user = acc.get("nome_usuario")
@@ -120,21 +108,31 @@ class AccountsScraperTask:
                             pais=acc.get("pais", "pt"),
                             nome_usuario=nome_user,
                             email=lobby_db.email,
-                            ativo=acc.get("ativo", True),
+                    # Corrigido para garantir que o BD receba dados válidos
+                            ativo=False,
                             automacao_ativa=False,
                             ultimo_login=agora_brasilia
                         )
                         db.session.add(nova_conta)
-                        print(f"[Task Scraper DB] Inserindo nova conta: {nome_user} @ {servidor_nome}")
+                        db.session.flush()
+                        conta_obj = nova_conta
                     else:
-                        conta_existente.ativo = acc.get("ativo", True)
-                        conta_existente.ultimo_login = agora_brasilia
-                        print(f"[Task Scraper DB] Atualizando conta existente: {nome_user} @ {servidor_nome}")
+                        conta_obj = conta_existente
+                        conta_obj.ultimo_login = agora_brasilia
 
-                db.session.flush()
+                    enriched_accounts.append({
+                        "db_id": conta_obj.id,
+                        "servidor": conta_obj.servidor,
+                        "pais": conta_obj.pais,
+                        "nome_usuario": conta_obj.nome_usuario,
+                        "ativo": conta_obj.ativo
+                    })
+
                 db.session.commit()
-                print(f"[Task Scraper SUCESSO] Duplicatas eliminadas e contas limpas com sucesso!")
+                print(f"[Task Scraper SUCESSO] Contas persistidas no BD com sucesso!")
+                return enriched_accounts
 
             except Exception as e:
                 db.session.rollback()
                 print(f"[Task Scraper ERRO BD] {e}")
+                return []

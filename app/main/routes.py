@@ -3,10 +3,10 @@
 import os
 import json
 import base64
-from flask import render_template, request, redirect, url_for, flash, current_app, jsonify
+from flask import render_template, request, redirect, url_for, flash, current_app, jsonify, session
 from flask_login import login_required, current_user
 from app import db
-from app.models import Proxy, Lobby, User, Conta
+from app.models import Proxy, Lobby, User, Conta, get_brasilia_time
 from app.main import main_bp
 from app.main.tasks import sync_webshare_job
 from app.main.decorators import admin_required, user_active_required
@@ -18,7 +18,7 @@ from app.bot import BotManager
 @login_required
 @user_active_required
 def index():
-    """Painel do Usuário: Carrega Lobbies e Proxies unificados em abas."""
+    """Painel do Utilizador: Carrega Lobbies e Proxies unificados em abas."""
     if current_user.is_admin == 1:
         return redirect(url_for('main.admin_dashboard'))
 
@@ -27,7 +27,6 @@ def index():
     for lobby in lobbies:
         lobby.is_running = BotManager.is_running(lobby.id)
 
-    # Carrega todas as proxies atribuídas ao usuário
     user_proxies_list = Proxy.query.filter_by(user_id=current_user.id).all()
 
     return render_template(
@@ -47,7 +46,6 @@ def index():
 @login_required
 @admin_required
 def admin_dashboard():
-    """Painel Único do Admin: Carrega proxies e usuários em abas."""
     proxies = Proxy.query.all()
     users = User.query.order_by(User.created_at.desc()).all()
     return render_template('main/dashboard.html', proxies=proxies, users=users)
@@ -57,7 +55,6 @@ def admin_dashboard():
 @login_required
 @admin_required
 def admin_proxies():
-    """Redireciona para o dashboard unificado por abas do admin."""
     return redirect(url_for('main.admin_dashboard'))
 
 
@@ -65,18 +62,17 @@ def admin_proxies():
 @login_required
 @admin_required
 def assign_proxy(proxy_id):
-    """Admin atribui ou altera o usuário dono da proxy."""
     proxy = Proxy.query.get_or_404(proxy_id)
     user_id = request.form.get('user_id', type=int)
 
     if user_id:
         user = User.query.get(user_id)
         if not user:
-            flash('Usuário selecionado não encontrado.', 'danger')
+            flash('Utilizador selecionado não encontrado.', 'danger')
             return redirect(url_for('main.admin_dashboard'))
 
         proxy.user_id = user.id
-        flash(f'Proxy #{proxy.id} atribuída com sucesso ao usuário {user.full_name}!', 'success')
+        flash(f'Proxy #{proxy.id} atribuída com sucesso ao utilizador {user.full_name}!', 'success')
     else:
         proxy.user_id = None
         flash(f'Proxy #{proxy.id} devolvida ao Pool Global.', 'info')
@@ -89,7 +85,6 @@ def assign_proxy(proxy_id):
 @login_required
 @admin_required
 def unassign_proxy(proxy_id):
-    """Admin desvincula a proxy do usuário e devolve ao Pool Global."""
     proxy = Proxy.query.get_or_404(proxy_id)
     proxy.user_id = None
     db.session.commit()
@@ -102,7 +97,6 @@ def unassign_proxy(proxy_id):
 @login_required
 @admin_required
 def sync_proxies():
-    """Sincroniza manualmente as proxies do Webshare no Pool Global."""
     try:
         app = current_app._get_current_object()
         sync_webshare_job(app)
@@ -117,7 +111,6 @@ def sync_proxies():
 @login_required
 @admin_required
 def admin_users():
-    """Redireciona para o dashboard unificado por abas do admin."""
     return redirect(url_for('main.admin_dashboard'))
 
 
@@ -125,7 +118,6 @@ def admin_users():
 @login_required
 @admin_required
 def toggle_user_status(user_id):
-    """Admin ativa ou desativa a conta de um usuário."""
     if user_id == current_user.id:
         flash('Você não pode desativar sua própria conta de administrador.', 'warning')
         return redirect(url_for('main.admin_dashboard'))
@@ -135,19 +127,18 @@ def toggle_user_status(user_id):
     db.session.commit()
 
     status_str = "ativado" if user.is_active else "desativado"
-    flash(f'Usuário {user.full_name} foi {status_str} com sucesso!', 'success')
+    flash(f'Utilizador {user.full_name} foi {status_str} com sucesso!', 'success')
     return redirect(url_for('main.admin_dashboard'))
 
 
 # ==========================================
-# ROTAS DO USUÁRIO - VISÃO DE PROXIES E LOBBIES
+# ROTAS DO UTILIZADOR - VISÃO DE PROXIES E LOBBIES
 # ==========================================
 
 @main_bp.route('/user/proxies', methods=['GET'])
 @login_required
 @user_active_required
 def user_proxies():
-    """Redireciona para a página principal unificada do usuário."""
     return redirect(url_for('main.index'))
 
 
@@ -155,7 +146,6 @@ def user_proxies():
 @login_required
 @user_active_required
 def lobbies_list():
-    """Redireciona para a página principal unificada do usuário."""
     return redirect(url_for('main.index'))
 
 
@@ -163,7 +153,6 @@ def lobbies_list():
 @login_required
 @user_active_required
 def create_lobby():
-    """Cadastro de um novo lobby recebendo o Código de Sessão importado."""
     user_proxies_list = Proxy.query.filter_by(user_id=current_user.id).all()
     proxies_livres = [p for p in user_proxies_list if not p.is_in_use]
 
@@ -174,7 +163,7 @@ def create_lobby():
         session_code = request.form.get('session_code', '').strip()
 
         if not current_user.can_create_lobby:
-            flash("Você atingiu o limite de Lobbies referente às suas proxies atribuídas.", "warning")
+            flash("Atingiu o limite de Lobbies referente às suas proxies atribuídas.", "warning")
             return redirect(url_for('main.index'))
 
         proxy = Proxy.query.filter_by(id=proxy_id, user_id=current_user.id).first()
@@ -186,7 +175,6 @@ def create_lobby():
             flash("O código da sessão é obrigatório para cadastrar o lobby.", "danger")
             return redirect(url_for('main.index'))
 
-        # Processa e decodifica a sessão Base64 extraída do Bookmarklet
         try:
             raw_json = base64.b64decode(session_code).decode('utf-8')
             session_data = json.loads(raw_json)
@@ -194,7 +182,6 @@ def create_lobby():
             flash(f"Código de sessão inválido ou corrompido: {str(err)}", "danger")
             return redirect(url_for('main.index'))
 
-        # Todo lobby cadastrado nasce ATIVO por padrão
         novo_lobby = Lobby(
             nickname=nickname,
             email=email,
@@ -207,23 +194,75 @@ def create_lobby():
         db.session.add(novo_lobby)
         db.session.commit()
 
-        # Salva o arquivo de sessão do Playwright
         session_file = novo_lobby.get_session_path()
         os.makedirs(os.path.dirname(session_file), exist_ok=True)
         with open(session_file, "w", encoding="utf-8") as f:
             json.dump(session_data, f, indent=4)
 
-        flash(f'Lobby "{nickname}" cadastrado com sucesso!', "success")
+        try:
+            from app.bot.tasks.accounts_scraper import AccountsScraperTask
+            db_accounts = AccountsScraperTask.run_sync_for_lobby(novo_lobby)
+        except Exception as e:
+            db_accounts = []
+
+        if not db_accounts:
+            flash(f'Lobby "{nickname}" cadastrado, mas nenhuma conta foi encontrada na varredura inicial.', "warning")
+            return redirect(url_for('main.index'))
+
+        session['temp_selection_data'] = {
+            'lobby_id': novo_lobby.id,
+            'accounts': db_accounts,
+            'modo': 'cadastro'
+        }
+        session.modified = True
+
+        flash(f'Lobby "{nickname}" cadastrado com sucesso! Selecione a conta desejada na aba aberta.', "success")
         return redirect(url_for('main.index'))
 
     return render_template('main/create_lobby.html', user_proxies=proxies_livres)
+
+
+@main_bp.route('/lobbies/salvar-conta-selecionada', methods=['POST'])
+@login_required
+@user_active_required
+def save_selected_account():
+    """Mantém estritamente apenas a conta escolhida e remove permanentemente as restantes."""
+    lobby_id = request.form.get('lobby_id', type=int)
+
+    conta_id_selecionada = request.form.get('conta_id', type=int)
+    if not conta_id_selecionada:
+        conta_id_selecionada = request.form.get('conta_index', type=int)
+
+    lobby = Lobby.query.filter_by(id=lobby_id, user_id=current_user.id).first_or_404()
+    contas_lobby = Conta.query.filter_by(lobby_id=lobby.id).all()
+
+    if conta_id_selecionada and contas_lobby:
+        if conta_id_selecionada < len(contas_lobby) and not any(c.id == conta_id_selecionada for c in contas_lobby):
+            conta_escolhida = contas_lobby[conta_id_selecionada]
+        else:
+            conta_escolhida = Conta.query.filter_by(id=conta_id_selecionada, lobby_id=lobby.id).first()
+
+        if conta_escolhida:
+            Conta.query.filter(
+                Conta.lobby_id == lobby.id,
+                Conta.id != conta_escolhida.id
+            ).delete(synchronize_session=False)
+
+            conta_escolhida.ativo = True
+            lobby.status = 'ATIVO'
+            db.session.commit()
+
+    session.pop('temp_selection_data', None)
+    session.modified = True
+
+    flash(f'Conta configurada e ativada com sucesso para o lobby "{lobby.nickname}"!', 'success')
+    return redirect(url_for('main.index'))
 
 
 @main_bp.route('/lobbies/<int:lobby_id>/editar', methods=['POST'])
 @login_required
 @user_active_required
 def edit_lobby(lobby_id):
-    """Edição de credenciais e atualização do Código de Sessão."""
     lobby = Lobby.query.filter_by(id=lobby_id, user_id=current_user.id).first_or_404()
 
     nickname = request.form.get('nickname', '').strip()
@@ -247,7 +286,6 @@ def edit_lobby(lobby_id):
     lobby.nickname = nickname
     lobby.email = email
 
-    # Atualiza a sessão caso um novo código tenha sido colado
     if session_code:
         try:
             raw_json = base64.b64decode(session_code).decode('utf-8')
@@ -260,7 +298,7 @@ def edit_lobby(lobby_id):
             lobby.status = 'ATIVO'
             flash('Sessão do Lobby atualizada com sucesso!', 'info')
         except Exception as e:
-            flash(f'Erro ao atualizar o arquivo de sessão: {str(e)}', 'danger')
+            flash(f'Erro ao atualizar o ficheiro de sessão: {str(e)}', 'danger')
 
     db.session.commit()
     flash(f'Lobby "{lobby.nickname}" atualizado com sucesso!', 'success')
@@ -271,12 +309,10 @@ def edit_lobby(lobby_id):
 @login_required
 @user_active_required
 def delete_lobby(lobby_id):
-    """Exclusão de um lobby pertencente ao usuário, deletando contas associadas e arquivo de sessão."""
     lobby = Lobby.query.filter_by(id=lobby_id, user_id=current_user.id).first_or_404()
 
     try:
         nickname = lobby.nickname
-
         BotManager.stop_lobby(lobby.id)
 
         session_file = lobby.get_session_path()
@@ -288,6 +324,9 @@ def delete_lobby(lobby_id):
 
         db.session.delete(lobby)
         db.session.commit()
+
+        session.pop('temp_selection_data', None)
+        session.modified = True
 
         flash(f'Lobby "{nickname}" e todos os seus servidores vinculados foram excluídos com sucesso!', 'success')
     except Exception as e:
@@ -301,43 +340,166 @@ def delete_lobby(lobby_id):
 @login_required
 @user_active_required
 def sync_lobby(lobby_id):
-    """Sincroniza os servidores/contas do lobby conectando diretamente ao Ikariam."""
+    """Sincroniza automaticamente a conta existente no banco por ID ou Servidor/Nome."""
     lobby = Lobby.query.filter_by(id=lobby_id, user_id=current_user.id).first_or_404()
 
     try:
         from app.bot.tasks.accounts_scraper import AccountsScraperTask
+        db_accounts = AccountsScraperTask.run_sync_for_lobby(lobby)
 
-        # Executa a raspagem direta das contas do lobby via Playwright
-        accounts_data = AccountsScraperTask.run_sync_for_lobby(lobby)
+        if not db_accounts:
+            flash(f"Falha ao sincronizar: nenhuma conta detetada para '{lobby.nickname}'.", "warning")
+            return redirect(url_for('main.index'))
 
-        if accounts_data:
-            # Sincronização concluída com sucesso: marca lobby como ATIVO
+        conta_atual = Conta.query.filter_by(lobby_id=lobby.id, ativo=True).first()
+        if not conta_atual:
+            conta_atual = Conta.query.filter_by(lobby_id=lobby.id).first()
+
+        match_encontrado = None
+        if conta_atual:
+            for acc in db_accounts:
+                match_id = (
+                    acc.get("gameforge_account_id") and conta_atual.gameforge_account_id and
+                    str(acc.get("gameforge_account_id")) == str(conta_atual.gameforge_account_id)
+                )
+                match_nome = (
+                    acc.get("servidor", "").strip().lower() == conta_atual.servidor.strip().lower() and
+                    acc.get("nome_usuario", "").strip().lower() == conta_atual.nome_usuario.strip().lower()
+                )
+
+                if match_id or match_nome:
+                    match_encontrado = acc
+                    break
+
+        if match_encontrado:
+            Conta.query.filter(
+                Conta.lobby_id == lobby.id,
+                Conta.id != match_encontrado["db_id"]
+            ).delete(synchronize_session=False)
+
+            conta_alvo = Conta.query.filter_by(id=match_encontrado["db_id"]).first()
+            if conta_alvo:
+                conta_alvo.ativo = True
+                conta_alvo.ultimo_login = get_brasilia_time()
+                if match_encontrado.get("gameforge_account_id"):
+                    conta_alvo.gameforge_account_id = match_encontrado.get("gameforge_account_id")
+
             lobby.status = 'ATIVO'
             db.session.commit()
-            flash(f"Lobby '{lobby.nickname}' sincronizado! {len(accounts_data)} conta(s) encontrada(s).", "success")
+
+            flash(f"Lobby '{lobby.nickname}' sincronizado com sucesso (Conta: {match_encontrado['nome_usuario']} - {match_encontrado['servidor']})!", "success")
         else:
-            flash(f"Nenhuma conta encontrada na sincronização do Lobby '{lobby.nickname}'.", "warning")
+            session['temp_selection_data'] = {
+                'lobby_id': lobby.id,
+                'accounts': db_accounts,
+                'modo': 'sincronizacao'
+            }
+            session.modified = True
+            flash(f"A conta anterior não foi encontrada na varredura de '{lobby.nickname}'. Selecione a nova conta ativa.", "warning")
 
     except Exception as e:
         db.session.rollback()
-        # Se ocorrer falha de conexão com a proxy ou sessão expirada, marca como INATIVO
-        lobby.status = 'INATIVO'
+        lobby.status = 'ERRO'
         db.session.commit()
-        print(f"[Sync ERRO] Falha ao sincronizar lobby #{lobby.id}: {e}")
-        flash(f"Falha na conexão do Lobby/Proxy: {str(e)}", "danger")
+        flash(f"Falha na sincronização do Lobby: {str(e)}", "danger")
 
     return redirect(url_for('main.index'))
 
 
+@main_bp.route('/lobbies/<int:lobby_id>/varredura-geral', methods=['POST', 'GET'])
+@login_required
+@user_active_required
+def varredura_geral_lobby(lobby_id):
+    lobby = Lobby.query.filter_by(id=lobby_id, user_id=current_user.id).first_or_404()
+
+    try:
+        from app.bot.tasks.accounts_scraper import AccountsScraperTask
+        db_accounts = AccountsScraperTask.run_sync_for_lobby(lobby)
+
+        session['temp_selection_data'] = {
+            'lobby_id': lobby.id,
+            'accounts': db_accounts,
+            'modo': 'troca_geral'
+        }
+        session.modified = True
+
+        flash(f"Varredura geral realizada para '{lobby.nickname}'. Selecione a nova conta na aba aberta.", "info")
+        return redirect(url_for('main.index'))
+    except Exception as e:
+        flash(f"Erro ao executar varredura geral: {str(e)}", "danger")
+        return redirect(url_for('main.index'))
+
+
 # ==========================================
-# ROTAS DE POLLING E CONTROLE INDIVIDUAL DE SERVIDORES
+# NOVAS ROTAS DO PAINEL DA CONTA / SINCRONIZAÇÃO
+# ==========================================
+
+@main_bp.route('/contas/<int:conta_id>/sincronizar-painel', methods=['POST'])
+@login_required
+@user_active_required
+def sincronizar_painel_conta(conta_id):
+    """Executa o login via bot, extrai os dados do império e atualiza a conta no banco."""
+    conta = Conta.query.join(Lobby).filter(
+        Conta.id == conta_id,
+        Lobby.user_id == current_user.id
+    ).first_or_404()
+
+    lobby = conta.lobby
+
+    try:
+        from app.bot.tasks.server_login import ServerLoginTask
+        sucesso, dados = ServerLoginTask.run_and_get_info(lobby.id, conta.id)
+
+        if sucesso and dados:
+            conta.ouro = dados.get('ouro_texto', '0')
+            conta.ouro_rendimento = dados.get('ouro_rendimento', '+0/h')
+            conta.barcos_totais = dados.get('barcos_totais', 0)
+            conta.barcos_disponiveis = dados.get('barcos_disponiveis', 0)
+            conta.recursos_imperio = json.dumps(dados.get('recursos_imperio', {}))
+            conta.cidades_detalhes = json.dumps(dados.get('cidades', []))
+            conta.ultima_sincronizacao = get_brasilia_time()
+            db.session.commit()
+
+            return jsonify({'success': True, 'message': 'Dados sincronizados com sucesso!'})
+        else:
+            return jsonify({'success': False, 'message': 'O bot conectou, mas falhou ao recolher os dados da página.'}), 500
+
+    except Exception as e:
+        db.session.rollback()
+        return jsonify({'success': False, 'message': f'Erro na automação: {str(e)}'}), 500
+
+
+@main_bp.route('/contas/<int:conta_id>/dados-painel', methods=['GET'])
+@login_required
+@user_active_required
+def get_dados_painel_conta(conta_id):
+    """Retorna os dados salvos no banco para renderizar o painel instantaneamente."""
+    conta = Conta.query.join(Lobby).filter(
+        Conta.id == conta_id,
+        Lobby.user_id == current_user.id
+    ).first_or_404()
+
+    return jsonify({
+        'servidor': conta.servidor,
+        'nome_usuario': conta.nome_usuario,
+        'ouro': conta.ouro,
+        'ouro_rendimento': conta.ouro_rendimento,
+        'barcos_totais': conta.barcos_totais,
+        'barcos_disponiveis': conta.barcos_disponiveis,
+        'recursos_imperio': json.loads(conta.recursos_imperio or '{}'),
+        'cidades': json.loads(conta.cidades_detalhes or '[]'),
+        'ultima_sincronizacao': conta.ultima_sincronizacao.strftime('%d/%m/%Y %H:%M') if conta.ultima_sincronizacao else 'Nunca'
+    })
+
+
+# ==========================================
+# ROTAS DE POLLING E CONTROLE INDIVIDUAL
 # ==========================================
 
 @main_bp.route('/api/lobbies/status', methods=['GET'])
 @login_required
 @user_active_required
 def get_lobbies_status():
-    """Retorna o status atualizado, contagem e detalhes de contas com dias sem login e automação."""
     lobbies = Lobby.query.filter_by(user_id=current_user.id).all()
 
     status_data = {}
@@ -379,7 +541,6 @@ def get_lobbies_status():
 @login_required
 @user_active_required
 def toggle_conta_automacao(conta_id):
-    """Alterna o estado de automacao_ativa (True/False) de um servidor específico do usuário."""
     conta = Conta.query.join(Lobby).filter(
         Conta.id == conta_id,
         Lobby.user_id == current_user.id

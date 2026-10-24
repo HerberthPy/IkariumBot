@@ -67,7 +67,7 @@ class AuthManager:
         print(f"[Auth] Sessão do cliente gravada com sucesso para o Lobby #{lobby_id}!")
 
     @classmethod
-    def get_authenticated_context(cls, browser, lobby, proxy_config):
+    def get_authenticated_context(cls, browser, lobby, proxy_config=None):
         session_file = cls.get_session_file_path(lobby.id)
         cookies = []
         local_storage = "{}"
@@ -91,8 +91,24 @@ class AuthManager:
                 f"Por favor, realize a primeira autenticação via painel."
             )
 
+        # Configuração estruturada e compatível do Proxy para o Playwright
+        playwright_proxy = None
+        if proxy_config:
+            playwright_proxy = proxy_config
+        elif lobby.proxy:
+            addr = lobby.proxy.address
+            port = lobby.proxy.port
+            pwd = lobby.proxy.get_password()
+
+            playwright_proxy = {
+                "server": f"http://{addr}:{port}"
+            }
+            if lobby.proxy.username and pwd:
+                playwright_proxy["username"] = lobby.proxy.username
+                playwright_proxy["password"] = pwd
+
         print(f"[Auth] Restaurando sessão com Proxy para '{lobby.nickname}'...")
-        proxy_context = browser.new_context(proxy=proxy_config)
+        proxy_context = browser.new_context(proxy=playwright_proxy)
 
         # Injeta cookies formatados no contexto
         formatted_cookies = cls._format_cookies_for_playwright(cookies)
@@ -101,13 +117,15 @@ class AuthManager:
 
         page = proxy_context.new_page()
 
-        # Tenta conectar ao Ikariam com timeout controlado
+        # Tenta conectar ao Ikariam com timeout estendido e otimizado para proxies
         try:
-            print(f"[Auth] Conectando ao Ikariam através da Proxy #{lobby.proxy.id if lobby.proxy else 'Sem Proxy'}...")
-            page.goto("https://lobby.ikariam.gameforge.com/pt_BR/", timeout=20000, wait_until="domcontentloaded")
+            proxy_id_str = f"#{lobby.proxy.id}" if lobby.proxy else 'Sem Proxy'
+            print(f"[Auth] Conectando ao Ikariam através da Proxy {proxy_id_str}...")
+            page.goto("https://lobby.ikariam.gameforge.com/pt_BR/", timeout=45000, wait_until="commit")
         except Exception as conn_err:
             proxy_context.close()
-            raise Exception(f"A Proxy #{lobby.proxy.id if lobby.proxy else 'N/A'} falhou ou não respondeu a tempo (Timeout). Verifique se a proxy está ativa.")
+            proxy_name_str = f"#{lobby.proxy.id}" if lobby.proxy else 'N/A'
+            raise Exception(f"A Proxy {proxy_name_str} falhou ou demorou a responder: {str(conn_err)}")
 
         # Trata o banner de cookies se ele aparecer
         try:
@@ -126,7 +144,7 @@ class AuthManager:
 
         # Atualiza para navegar autenticado para o Hub
         try:
-            page.goto("https://lobby.ikariam.gameforge.com/pt_BR/hub", timeout=20000, wait_until="domcontentloaded")
+            page.goto("https://lobby.ikariam.gameforge.com/pt_BR/hub", timeout=30000, wait_until="domcontentloaded")
         except Exception:
             pass
 
@@ -135,6 +153,7 @@ class AuthManager:
             if os.path.exists(session_file):
                 os.remove(session_file)
             proxy_context.close()
-            raise Exception(f"A sessão salva para o Lobby '{lobby.nickname}' expirou. Capture um novo código de sessão.")
+            raise Exception(
+                f"A sessão salva para o Lobby '{lobby.nickname}' expirou. Capture um novo código de sessão.")
 
         return proxy_context, page
