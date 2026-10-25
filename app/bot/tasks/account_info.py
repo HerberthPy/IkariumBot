@@ -178,7 +178,7 @@ class AccountInfoTask:
 
             try:
                 # 2. Captura o rendimento exato na linha de resultado (tr.result)
-                rendimento_exato = game_page.locator("tr.result td.nowrap div.tooltip").nth(2).inner_text(timeout=3000).strip()
+                rendimento_exato = game_page.locator("tr.result td.nowrap div.tooltip").nth(7).inner_text(timeout=3000).strip()
                 print(f"Rendimento exato: {rendimento_exato.strip()}")
             except Exception as e:
                 print(f"Não foi possível capturar o rendimento exato: {e}")
