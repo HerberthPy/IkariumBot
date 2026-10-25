@@ -435,30 +435,30 @@
             <img src="{{ url_for('static', filename='img/finances.png') }}" alt="Ouro" style="width: 28px; height: 28px;">
             <div class="text-start">
               <div class="fw-bold small">
-                {{ "{:,.0f}".format(totais_gerais.ouro).replace(',', '.') }}
-                <span class="text-success fw-normal" style="font-size: 0.8rem;">({{ totais_gerais.ouro_rendimento }}/h)</span>
+                {{ totais_gerais.ouro_texto }}
+                <span class="text-success fw-normal" style="font-size: 0.8rem;">({{ totais_gerais.ouro_rendimento_texto }})</span>
               </div>
             </div>
           </div>
           <div class="d-flex align-items-center gap-1">
-            <img src="{{ url_for('static', filename='img/icon_wood.png') }}" style="width: 20px; height: 20px;">
-            <span class="fw-bold small">{{ "{:,.0f}".format(totais_gerais.madeira).replace(',', '.') }}</span>
+            <img src="{{ url_for('static', filename='img/icon_wood.png') }}" style="width: 20px; height: 20px;" title="Madeira">
+            <span class="fw-bold small">{{ "{:,.0f}".format(totais_gerais.madeira or 0).replace(',', '.') }}</span>
           </div>
           <div class="d-flex align-items-center gap-1">
-            <img src="{{ url_for('static', filename='img/icon_wine.png') }}" style="width: 20px; height: 20px;">
-            <span class="fw-bold small">{{ "{:,.0f}".format(totais_gerais.vinho).replace(',', '.') }}</span>
+            <img src="{{ url_for('static', filename='img/icon_wine.png') }}" style="width: 20px; height: 20px;" title="Vinho">
+            <span class="fw-bold small">{{ "{:,.0f}".format(totais_gerais.vinho or 0).replace(',', '.') }}</span>
           </div>
           <div class="d-flex align-items-center gap-1">
-            <img src="{{ url_for('static', filename='img/icon_marble.png') }}" style="width: 20px; height: 20px;">
-            <span class="fw-bold small">{{ "{:,.0f}".format(totais_gerais.marmore).replace(',', '.') }}</span>
+            <img src="{{ url_for('static', filename='img/icon_marble.png') }}" style="width: 20px; height: 20px;" title="Mármore">
+            <span class="fw-bold small">{{ "{:,.0f}".format(totais_gerais.marmore or 0).replace(',', '.') }}</span>
           </div>
           <div class="d-flex align-items-center gap-1">
-            <img src="{{ url_for('static', filename='img/icon_glass.png') }}" style="width: 20px; height: 20px;">
-            <span class="fw-bold small">{{ "{:,.0f}".format(totais_gerais.cristal).replace(',', '.') }}</span>
+            <img src="{{ url_for('static', filename='img/icon_glass.png') }}" style="width: 20px; height: 20px;" title="Cristal">
+            <span class="fw-bold small">{{ "{:,.0f}".format(totais_gerais.cristal or 0).replace(',', '.') }}</span>
           </div>
           <div class="d-flex align-items-center gap-1">
-            <img src="{{ url_for('static', filename='img/icon_sulfur.png') }}" style="width: 20px; height: 20px;">
-            <span class="fw-bold small">{{ "{:,.0f}".format(totais_gerais.enxofre).replace(',', '.') }}</span>
+            <img src="{{ url_for('static', filename='img/icon_sulfur.png') }}" style="width: 20px; height: 20px;" title="Enxofre">
+            <span class="fw-bold small">{{ "{:,.0f}".format(totais_gerais.enxofre or 0).replace(',', '.') }}</span>
           </div>
         </div>
       </div>
@@ -471,32 +471,32 @@
             <thead class="border-bottom">
               <tr>
                 <th scope="col" class="ps-4 py-3 small fw-semibold">LOBBY / CONTA</th>
-                <th scope="col" class="py-3 small fw-semibold text-center">OURO</th>
-                <th scope="col" class="py-3 small fw-semibold text-center">MADEIRA</th>
-                <th scope="col" class="py-3 small fw-semibold text-center">VINHO</th>
-                <th scope="col" class="py-3 small fw-semibold text-center">MÁRMORE</th>
-                <th scope="col" class="py-3 small fw-semibold text-center">CRISTAL</th>
-                <th scope="col" class="py-3 small fw-semibold text-center">ENXOFRE</th>
+                <th scope="col" class="py-3 small fw-semibold text-center"><img src="{{ url_for('static', filename='img/finances.png') }}" style="width: 26px; height: 22px;" title="Ouro"></th>
+                <th scope="col" class="py-3 small fw-semibold text-center"><img src="{{ url_for('static', filename='img/icon_wood.png') }}" style="width: 20px; height: 20px;" title="Madeira"></th>
+                <th scope="col" class="py-3 small fw-semibold text-center"><img src="{{ url_for('static', filename='img/icon_wine.png') }}" style="width: 20px; height: 20px;" title="Vinho"></th>
+                <th scope="col" class="py-3 small fw-semibold text-center"><img src="{{ url_for('static', filename='img/icon_marble.png') }}" style="width: 20px; height: 20px;" title="Mármore"></th>
+                <th scope="col" class="py-3 small fw-semibold text-center"><img src="{{ url_for('static', filename='img/icon_glass.png') }}" style="width: 20px; height: 20px;" title="Cristal"></th>
+                <th scope="col" class="py-3 small fw-semibold text-center"><img src="{{ url_for('static', filename='img/icon_sulfur.png') }}" style="width: 20px; height: 20px;" title="Enxofre"></th>
               </tr>
             </thead>
             <tbody>
               {% for item in imperio_data %}
-              <!-- LINHA DO LOBBY (SEM SETA) -->
+              <!-- LINHA DO LOBBY -->
               <tr class="lobby-imperio-row" style="cursor: pointer;" onclick="toggleImperioLobbyAccordion({{ item.lobby_id }}, event)">
                 <td class="ps-4 py-3 fw-bold text-primary">
                   <i class="bi bi-controller me-2"></i>{{ item.nickname }}
                 </td>
                 <td class="py-3 text-center">
                   <div class="fw-semibold">
-                    {{ "{:,.0f}".format(item.ouro).replace(',', '.') }}
-                    <span class="text-success fw-normal" style="font-size: 0.8rem;">({% if item.ouro_rendimento >= 0 %}+{% endif %}{{ "{:,.0f}".format(item.ouro_rendimento).replace(',', '.') }}/h)</span>
+                    {{ item.ouro_texto }}
+                    <span class="text-success fw-normal" style="font-size: 0.8rem;">({{ item.ouro_rendimento_texto }})</span>
                   </div>
                 </td>
-                <td class="py-3 text-center fw-semibold">{{ "{:,.0f}".format(item.madeira).replace(',', '.') }}</td>
-                <td class="py-3 text-center fw-semibold">{{ "{:,.0f}".format(item.vinho).replace(',', '.') }}</td>
-                <td class="py-3 text-center fw-semibold">{{ "{:,.0f}".format(item.marmore).replace(',', '.') }}</td>
-                <td class="py-3 text-center fw-semibold">{{ "{:,.0f}".format(item.cristal).replace(',', '.') }}</td>
-                <td class="py-3 text-center fw-semibold">{{ "{:,.0f}".format(item.enxofre).replace(',', '.') }}</td>
+                <td class="py-3 text-center fw-semibold">{{ "{:,.0f}".format(item.madeira or 0).replace(',', '.') }}</td>
+                <td class="py-3 text-center fw-semibold">{{ "{:,.0f}".format(item.vinho or 0).replace(',', '.') }}</td>
+                <td class="py-3 text-center fw-semibold">{{ "{:,.0f}".format(item.marmore or 0).replace(',', '.') }}</td>
+                <td class="py-3 text-center fw-semibold">{{ "{:,.0f}".format(item.cristal or 0).replace(',', '.') }}</td>
+                <td class="py-3 text-center fw-semibold">{{ "{:,.0f}".format(item.enxofre or 0).replace(',', '.') }}</td>
               </tr>
 
               <!-- SUB-LINHA EXPANSÍVEL POR CONTA DO LOBBY -->
@@ -511,12 +511,12 @@
                         <thead class="border-bottom">
                           <tr>
                             <th class="ps-3 py-2 small fw-semibold">MUNDO / CONTA</th>
-                            <th class="py-2 small fw-semibold text-center">OURO</th>
-                            <th class="py-2 small fw-semibold text-center">MADEIRA</th>
-                            <th class="py-2 small fw-semibold text-center">VINHO</th>
-                            <th class="py-2 small fw-semibold text-center">MÁRMORE</th>
-                            <th class="py-2 small fw-semibold text-center">CRISTAL</th>
-                            <th class="py-2 small fw-semibold text-center">ENXOFRE</th>
+                            <th class="py-2 small fw-semibold text-center"><img src="{{ url_for('static', filename='img/finances.png') }}" style="width: 22px; height: 18px;" title="Ouro"></th>
+                            <th class="py-2 small fw-semibold text-center"><img src="{{ url_for('static', filename='img/icon_wood.png') }}" style="width: 18px; height: 18px;" title="Madeira"></th>
+                            <th class="py-2 small fw-semibold text-center"><img src="{{ url_for('static', filename='img/icon_wine.png') }}" style="width: 18px; height: 18px;" title="Vinho"></th>
+                            <th class="py-2 small fw-semibold text-center"><img src="{{ url_for('static', filename='img/icon_marble.png') }}" style="width: 18px; height: 18px;" title="Mármore"></th>
+                            <th class="py-2 small fw-semibold text-center"><img src="{{ url_for('static', filename='img/icon_glass.png') }}" style="width: 18px; height: 18px;" title="Cristal"></th>
+                            <th class="py-2 small fw-semibold text-center"><img src="{{ url_for('static', filename='img/icon_sulfur.png') }}" style="width: 18px; height: 18px;" title="Enxofre"></th>
                           </tr>
                         </thead>
                         <tbody>
@@ -528,14 +528,14 @@
                             <td class="py-2 text-center small">
                               <div class="fw-semibold">
                                 {{ acc.ouro_texto }}
-                                <span class="text-success fw-normal" style="font-size: 0.8rem;">({{ acc.ouro_rendimento }})</span>
+                                <span class="text-success fw-normal" style="font-size: 0.8rem;">({{ acc.ouro_rendimento_texto }})</span>
                               </div>
                             </td>
-                            <td class="py-2 text-center small fw-semibold">{{ "{:,.0f}".format(acc.madeira).replace(',', '.') }}</td>
-                            <td class="py-2 text-center small fw-semibold">{{ "{:,.0f}".format(acc.vinho).replace(',', '.') }}</td>
-                            <td class="py-2 text-center small fw-semibold">{{ "{:,.0f}".format(acc.marmore).replace(',', '.') }}</td>
-                            <td class="py-2 text-center small fw-semibold">{{ "{:,.0f}".format(acc.cristal).replace(',', '.') }}</td>
-                            <td class="py-2 text-center small fw-semibold">{{ "{:,.0f}".format(acc.enxofre).replace(',', '.') }}</td>
+                            <td class="py-2 text-center small fw-semibold">{{ "{:,.0f}".format(acc.madeira or 0).replace(',', '.') }}</td>
+                            <td class="py-2 text-center small fw-semibold">{{ "{:,.0f}".format(acc.vinho or 0).replace(',', '.') }}</td>
+                            <td class="py-2 text-center small fw-semibold">{{ "{:,.0f}".format(acc.marmore or 0).replace(',', '.') }}</td>
+                            <td class="py-2 text-center small fw-semibold">{{ "{:,.0f}".format(acc.cristal or 0).replace(',', '.') }}</td>
+                            <td class="py-2 text-center small fw-semibold">{{ "{:,.0f}".format(acc.enxofre or 0).replace(',', '.') }}</td>
                           </tr>
                           {% endfor %}
                         </tbody>
@@ -642,6 +642,32 @@
 
 {% block extra_js %}
 <script>
+  function formatarOuroPadrao(rawGold) {
+    if (!rawGold) return '0';
+    let str = String(rawGold).trim();
+    let digits = str.replace(/\D/g, '');
+    if (!digits) return '0';
+
+    let intPart = digits.length > 2 ? parseInt(digits.slice(0, -2)) : 0;
+    if (intPart === 0) return '0';
+
+    return intPart.toLocaleString('pt-BR');
+  }
+
+  function formatarRendimentoJS(rawRend) {
+    if (!rawRend) return '+0/h';
+    let str = String(rawRend).trim();
+    let sinal = str.startsWith('-') ? '-' : '+';
+    let digits = str.replace(/\D/g, '');
+    if (!digits) return '+0/h';
+
+    let intPart = digits.length > 2 ? parseInt(digits.slice(0, -2)) : 0;
+    if (intPart === 0) return '+0/h';
+
+    let formattedNum = intPart.toLocaleString('pt-BR');
+    return `${sinal}${formattedNum}/h`;
+  }
+
   document.addEventListener('DOMContentLoaded', () => {
     const bookmarkletCode = "javascript:(function(){if(!window.location.hostname.includes('ikariam')){alert('Abra a página do Ikariam antes de clicar no favorito!');return;}const s={cookies:document.cookie,localStorage:JSON.stringify(localStorage)};const e=btoa(unescape(encodeURIComponent(JSON.stringify(s))));const o=document.createElement('div');o.style='position:fixed;top:0;left:0;width:100vw;height:100vh;background:rgba(15,23,42,0.95);z-index:999999;display:flex;align-items:center;justify-content:center;font-family:Arial,sans-serif;';o.innerHTML=`<div style='background:#1e293b;color:#f8fafc;padding:30px;border-radius:16px;max-width:550px;width:90%;text-align:center;'><h2 style='color:#22c55e;margin-bottom:10px;'>✓ Sessão Capturada!</h2><p style='color:#94a3b8;font-size:13px;'>Copie o código abaixo e cole no formulário do IkariumBot:</p><textarea id='code' readonly style='width:100%;height:100px;background:#0f172a;color:#38bdf8;border:1px solid #334155;border-radius:8px;padding:8px;font-size:11px;resize:none;'>${e}</textarea><button onclick='navigator.clipboard.writeText(\"${e}\");alert(\"Código copiado para a área de transferência!\");' style='margin-top:12px;width:100%;background:#0284c7;color:white;border:none;padding:10px;border-radius:8px;font-weight:bold;cursor:pointer;'>📋 Copiar Código da Sessão</button><button onclick='(async function(){try{localStorage.clear();sessionStorage.clear();if(window.indexedDB&&indexedDB.databases){const dbs=await indexedDB.databases();dbs.forEach(db=>{if(db.name)indexedDB.deleteDatabase(db.name);});}if(window.caches){const keys=await caches.keys();keys.forEach(k=>caches.delete(k));}}catch(err){}document.cookie.split(\";\").forEach(c=>{document.cookie=c.replace(/^ +/,\"\").replace(/=.*/,\"=;expires=\"+new Date().toUTCString()+\";path=/;domain=\"+window.location.hostname);document.cookie=c.replace(/^ +/,\"\").replace(/=.*/,\"=;expires=\"+new Date().toUTCString()+\";path=/;domain=.gameforge.com\");});window.location.href=\"https://lobby.ikariam.gameforge.com/pt_BR/login\";})();' style='margin-top:8px;width:100%;background:#d97706;color:white;border:none;padding:10px;border-radius:8px;font-weight:bold;cursor:pointer;'>🚪 Sair do Navegador (Para Logar Outro Lobby)</button></div>`;document.body.appendChild(o);})();";
 
@@ -771,7 +797,7 @@
           </div>
         </div>
 
-        <!-- SUB-ABAS DE NAVEGAÇÃO DA CONTA (RECURSOS, MILITAR, AUTOMAÇÃO) -->
+        <!-- SUB-ABAS DE NAVEGAÇÃO DA CONTA -->
         <div class="mb-4 border-bottom pb-3">
           <ul class="nav d-flex flex-row gap-2 m-0 p-0 list-unstyled" id="subTabs-${contaId}">
             <li class="nav-item">
@@ -991,12 +1017,15 @@
     const iconSulfur = "{{ url_for('static', filename='img/icon_sulfur.png') }}";
     const iconPopulation = "{{ url_for('static', filename='img/icon_population.png') }}";
 
+    const ouroFormatadoPadrao = formatarOuroPadrao(data.ouro);
+    const rendimentoFormatadoJS = formatarRendimentoJS(data.ouro_rendimento);
+
     const headerHtml = `
       <div class="d-flex align-items-center gap-2" title="Ouro e Rendimento">
         <img src="${iconGold}" alt="Ouro" style="width: 26px; height: 26px;">
         <div class="text-start">
-          <div class="fw-bold small">${data.ouro || '0'}</div>
-          <div class="text-success extra-small" style="font-size: 0.7rem;">${data.ouro_rendimento || '+0/h'}</div>
+          <div class="fw-bold small">${ouroFormatadoPadrao}</div>
+          <div class="text-success extra-small" style="font-size: 0.7rem;">${rendimentoFormatadoJS}</div>
         </div>
       </div>
       <div class="d-flex align-items-center gap-2" title="Barcos de Transporte">
@@ -1038,11 +1067,11 @@
               <tr>
                 <th class="py-3 px-3 small fw-bold">CIDADE</th>
                 <th class="py-3 px-3 small fw-bold text-center"><img src="${iconPopulation}" style="width: 16px; height: 16px; vertical-align: middle;" title="Cidadãos"> CIDADÃOS</th>
-                <th class="py-3 px-3 small fw-bold text-center"><img src="${iconWood}" style="width: 16px; height: 16px; vertical-align: middle;" title="Madeira"> MADEIRA</th>
-                <th class="py-3 px-3 small fw-bold text-center"><img src="${iconWine}" style="width: 16px; height: 16px; vertical-align: middle;" title="Vinho"> VINHO</th>
-                <th class="py-3 px-3 small fw-bold text-center"><img src="${iconMarble}" style="width: 16px; height: 16px; vertical-align: middle;" title="Mármore"> MÁRMORE</th>
-                <th class="py-3 px-3 small fw-bold text-center"><img src="${iconGlass}" style="width: 16px; height: 16px; vertical-align: middle;" title="Cristal"> CRISTAL</th>
-                <th class="py-3 px-3 small fw-bold text-center"><img src="${iconSulfur}" style="width: 16px; height: 16px; vertical-align: middle;" title="Enxofre"> ENXOFRE</th>
+                <th class="py-3 px-3 small fw-bold text-center"><img src="${iconWood}" style="width: 16px; height: 16px; vertical-align: middle;" title="Madeira"></th>
+                <th class="py-3 px-3 small fw-bold text-center"><img src="${iconWine}" style="width: 16px; height: 16px; vertical-align: middle;" title="Vinho"></th>
+                <th class="py-3 px-3 small fw-bold text-center"><img src="${iconMarble}" style="width: 16px; height: 16px; vertical-align: middle;" title="Mármore"></th>
+                <th class="py-3 px-3 small fw-bold text-center"><img src="${iconGlass}" style="width: 16px; height: 16px; vertical-align: middle;" title="Cristal"></th>
+                <th class="py-3 px-3 small fw-bold text-center"><img src="${iconSulfur}" style="width: 16px; height: 16px; vertical-align: middle;" title="Enxofre"></th>
               </tr>
             </thead>
             <tbody>

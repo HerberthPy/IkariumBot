@@ -1,5 +1,3 @@
-# app/main/routes.py
-
 import os
 import json
 import base64
@@ -44,9 +42,30 @@ def index():
 
     empire_data = []
 
+    # Função auxiliar para formatar o rendimento no mesmo padrão da aba individual (removendo os 2 últimos dígitos)
+    def formatar_rendimento_sistema(raw_rend):
+        if not raw_rend:
+            return "+0/h"
+        try:
+            str_val = str(raw_rend).strip()
+            sinal = "-" if str_val.startswith("-") else "+"
+            digits = "".join(c for c in str_val if c.isdigit())
+            if not digits:
+                return "+0/h"
+
+            # Remove os 2 últimos dígitos (centavos/decimais)
+            int_part = int(digits[:-2]) if len(digits) > 2 else 0
+            if int_part == 0:
+                return "+0/h"
+
+            formatted_num = f"{int_part:,}".replace(",", ".")
+            return f"{sinal}{formatted_num}/h"
+        except Exception:
+            return "+0/h"
+
     for lobby in lobbies:
-        lobby_ouro = 0
-        lobby_rendimento = 0
+        lobby_ouro_raw = 0
+        lobby_rendimento_raw = 0
         lobby_madeira = 0
         lobby_vinho = 0
         lobby_marmore = 0
@@ -59,25 +78,29 @@ def index():
             if not conta.ativo:
                 continue
 
-            # Tratamento robusto para extrair o valor numérico do ouro
-            ouro_val = 0
+            # Ouro bruto da conta
+            ouro_int_val = 0
             if conta.ouro:
                 try:
-                    clean_gold = re.sub(r'[^\d]', '', str(conta.ouro))
-                    ouro_val = int(clean_gold) if clean_gold else 0
+                    str_val = str(conta.ouro).strip()
+                    digits = "".join(c for c in str_val if c.isdigit())
+                    if digits and len(digits) > 2:
+                        ouro_int_val = int(digits[:-2])
                 except:
-                    ouro_val = 0
-            lobby_ouro += ouro_val
+                    ouro_int_val = 0
+            lobby_ouro_raw += ouro_int_val
 
-            # Tratamento para extrair o rendimento de ouro/hora (ex: "+565/h" ou "-100/h")
-            rendimento_val = 0
+            # Rendimento bruto da conta (removendo os 2 últimos dígitos)
+            rendimento_int_val = 0
             if conta.ouro_rendimento:
                 try:
-                    clean_rend = re.sub(r'[^\d\-]', '', str(conta.ouro_rendimento))
-                    rendimento_val = int(clean_rend) if clean_rend else 0
+                    str_rend = str(conta.ouro_rendimento).strip()
+                    digits_rend = "".join(c for c in str_rend if c.isdigit())
+                    if digits_rend and len(digits_rend) > 2:
+                        rendimento_int_val = int(digits_rend[:-2])
                 except:
-                    rendimento_val = 0
-            lobby_rendimento += rendimento_val
+                    rendimento_int_val = 0
+            lobby_rendimento_raw += rendimento_int_val
 
             cidades_list = []
             if conta.cidades_detalhes:
@@ -106,9 +129,8 @@ def index():
                 'id': conta.id,
                 'servidor': conta.servidor,
                 'nome_usuario': conta.nome_usuario,
-                'ouro': ouro_val,
-                'ouro_texto': conta.ouro or '0',
-                'ouro_rendimento': conta.ouro_rendimento or '+0/h',
+                'ouro_texto': f"{ouro_int_val:,}".replace(",", ".") if ouro_int_val > 0 else "0",
+                'ouro_rendimento_texto': formatar_rendimento_sistema(conta.ouro_rendimento),
                 'madeira': c_madeira,
                 'vinho': c_vinho,
                 'marmore': c_marmore,
@@ -116,20 +138,25 @@ def index():
                 'enxofre': c_enxofre
             })
 
-        total_ouro_geral += lobby_ouro
-        total_rendimento_geral += lobby_rendimento
+        total_ouro_geral += lobby_ouro_raw
+        total_rendimento_geral += lobby_rendimento_raw
         total_madeira_geral += lobby_madeira
         total_vinho_geral += lobby_vinho
         total_marmore_geral += lobby_marmore
         total_cristal_geral += lobby_cristal
         total_enxofre_geral += lobby_enxofre
 
+        lobby_ouro_texto = f"{lobby_ouro_raw:,}".replace(",", ".") if lobby_ouro_raw > 0 else "0"
+        lobby_rendimento_texto = f"+{lobby_rendimento_raw:,}".replace(",",
+                                                                      ".") + "/h" if lobby_rendimento_raw >= 0 else f"-{abs(lobby_rendimento_raw):,}".replace(
+            ",", ".") + "/h"
+
         empire_data.append({
             'lobby_id': lobby.id,
             'nickname': lobby.nickname,
             'email': lobby.email,
-            'ouro': lobby_ouro,
-            'ouro_rendimento': lobby_rendimento,
+            'ouro_texto': lobby_ouro_texto,
+            'ouro_rendimento_texto': lobby_rendimento_texto,
             'madeira': lobby_madeira,
             'vinho': lobby_vinho,
             'marmore': lobby_marmore,
@@ -138,11 +165,14 @@ def index():
             'contas': structured_accounts
         })
 
-    rendimento_formatado = f"+{total_rendimento_geral:,}".replace(',', '.') if total_rendimento_geral >= 0 else f"{total_rendimento_geral:,}".replace(',', '.')
+    overall_totals_ouro_texto = f"{total_ouro_geral:,}".replace(",", ".") if total_ouro_geral > 0 else "0"
+    overall_totals_rendimento_texto = f"+{total_rendimento_geral:,}".replace(",",
+                                                                             ".") + "/h" if total_rendimento_geral >= 0 else f"-{abs(total_rendimento_geral):,}".replace(
+        ",", ".") + "/h"
 
     overall_totals = {
-        'ouro': total_ouro_geral,
-        'ouro_rendimento': rendimento_formatado,
+        'ouro_texto': overall_totals_ouro_texto,
+        'ouro_rendimento_texto': overall_totals_rendimento_texto,
         'madeira': total_madeira_geral,
         'vinho': total_vinho_geral,
         'marmore': total_marmore_geral,
@@ -726,8 +756,8 @@ def sincronizar_painel_conta(conta_id):
         sucesso, dados = ServerLoginTask.run_and_get_info(lobby.id, conta.id)
 
         if sucesso and dados:
-            conta.ouro = dados.get('ouro_texto', '0')
-            conta.ouro_rendimento = dados.get('ouro_rendimento', '+0/h')
+            conta.ouro = dados.get('ouro', '0')
+            conta.ouro_rendimento = dados.get('ouro_rendimento', '0')
             conta.barcos_totais = dados.get('barcos_totais', 0)
             conta.barcos_disponiveis = dados.get('barcos_disponiveis', 0)
             conta.recursos_imperio = json.dumps(dados.get('recursos_imperio', {}))
@@ -735,7 +765,7 @@ def sincronizar_painel_conta(conta_id):
             conta.ultima_sincronizacao = get_brasilia_time()
             db.session.commit()
 
-            return jsonify({'success': True, 'message': 'Dados sincronizados com sucesso!'})
+            return jsonify({'success': True, 'message': 'Dados sincronizados e salvos com sucesso!'})
         else:
             return jsonify(
                 {'success': False, 'message': 'O bot conectou, mas falhou ao recolher os dados da página.'}), 500
