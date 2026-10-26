@@ -38,24 +38,32 @@ class AccountInfoTask:
             # LIMPEZA INICIAL: FECHAR POP-UPS DE ANÚNCIO E COOKIES
             # =========================================================================
             try:
-                print("[Game Cleaner] Verificando pop-ups de anúncio e banner de cookies...")
+                print("[Game Cleaner] Verificando pop-ups, anúncios e banner de cookies...")
 
-                close_btn = game_page.locator(
-                    "button:has-text('Close'), a:has-text('Close'), button:has-text('Fechar'), a:has-text('Fechar'), .closeBtn, .ui-dialog-titlebar-close").first
-                if close_btn.is_visible(timeout=2500):
-                    close_btn.click()
-                    print("[Game Cleaner] Pop-up de anúncio fechado com sucesso.")
-                    HumanBehavior.random_sleep(0.6, 1.0)
+                # Loop para fechar quantas janelas/anúncios/conquistas aparecerem na tela
+                for _ in range(3):  # Tenta até 3 vezes caso haja mais de uma sobreposição
+                    close_btn = game_page.locator(
+                        "button:has-text('Close'), a:has-text('Close'), button:has-text('Fechar'), a:has-text('Fechar'), div.ui-dialog button:has-text('OK'), button.button:has-text('OK'), .closeBtn, .ui-dialog-titlebar-close"
+                    ).first
 
+                    if close_btn.is_visible(timeout=1000):
+                        close_btn.click()
+                        print("[Game Cleaner] Pop-up / Conquista fechada com sucesso.")
+                        HumanBehavior.random_sleep(0.4, 0.7)
+                    else:
+                        break  # Se não houver mais nenhum botão de fechar visível, sai do loop
+
+                # Tenta aceitar/fechar o banner de cookies se ele estiver presente
                 cookie_btn = game_page.locator(
-                    "button:has-text('Aceitar Cookies'), button:has-text('Accept Cookies'), #cookie-consent button, button[id*='cookie']").first
+                    "button:has-text('Aceitar Cookies'), button:has-text('Accept Cookies'), #cookie-consent button, button[id*='cookie']"
+                ).first
                 if cookie_btn.is_visible(timeout=1500):
                     cookie_btn.click()
                     print("[Game Cleaner] Banner de cookies aceito/fechado com sucesso.")
                     HumanBehavior.random_sleep(0.4, 0.8)
 
-            except Exception as cleaner_err:
-                print(f"[Game Cleaner Aviso] Nenhum pop-up ou cookie bloqueando a tela: {cleaner_err}")
+            except Exception as e:
+                print(f"[Game Cleaner AVISO] Erro ao tentar limpar elementos da tela: {e}")
 
             # Captura o texto dos elementos diretamente pelos IDs exatos
             barcos_livres = int(game_page.locator("#js_GlobalMenu_freeTransporters").inner_text().strip())

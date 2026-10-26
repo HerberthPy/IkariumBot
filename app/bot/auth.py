@@ -134,53 +134,52 @@ class AuthManager:
         # MODO SEM PROXYS (TEMPORÁRIO) - Para reativar proxies no futuro, substitua
         # esta linha pelo bloco comentado abaixo.
         # =========================================================================
-        print(f"[Auth - MODO TESTE] Iniciando contexto SEM PROXY para '{lobby.nickname}'...")
-        proxy_context = browser.new_context()
+        # print(f"[Auth - MODO TESTE] Iniciando contexto SEM PROXY para '{lobby.nickname}'...")
+        # proxy_context = browser.new_context()
 
         # [BLOCO DE PROXY ORIGINAL COMENTADO PARA FUTURA REATIVAÇÃO]
-        # """
-        # playwright_proxy = None
-        # proxy_address_str = "Sem Proxy"
-        # if proxy_config:
-        #     playwright_proxy = proxy_config
-        #     proxy_address_str = proxy_config.get("server", "Personalizado")
-        # elif lobby.proxy:
-        #     addr = lobby.proxy.address
-        #     port = lobby.proxy.port
-        #     pwd = lobby.proxy.get_password()
-        #     proxy_address_str = f"{addr}:{port}"
-        #
-        #     playwright_proxy = {
-        #         "server": f"http://{proxy_address_str}"
-        #     }
-        #     if lobby.proxy.username and pwd:
-        #         playwright_proxy["username"] = lobby.proxy.username
-        #         playwright_proxy["password"] = pwd
-        #
-        # proxy_id_str = f"#{lobby.proxy.id}" if lobby.proxy else 'Sem Proxy'
-        # print(f"[Auth] Restaurando sessão com Proxy {proxy_id_str} ({proxy_address_str}) para '{lobby.nickname}'...")
-        # proxy_context = browser.new_context(proxy=playwright_proxy)
-        #
-        # temp_ip_page = proxy_context.new_page()
-        # external_ip = "Desconhecido"
-        # try:
-        #     temp_ip_page.goto("https://api.ipify.org?format=json", timeout=15000)
-        #     ip_data = temp_ip_page.inner_text("body")
-        #     external_ip = json.loads(ip_data).get("ip", "Desconhecido")
-        # except Exception as ip_err:
-        #     print(f"[Auth AVISO] Não foi possível verificar o IP externo: {ip_err}")
-        # finally:
-        #     try:
-        #         temp_ip_page.close()
-        #     except:
-        #         pass
-        #
-        # try:
-        #     cls.verify_and_record_ip(lobby, external_ip)
-        # except Exception as sec_err:
-        #     proxy_context.close()
-        #     raise sec_err
-        # """
+
+        playwright_proxy = None
+        proxy_address_str = "Sem Proxy"
+        if proxy_config:
+            playwright_proxy = proxy_config
+            proxy_address_str = proxy_config.get("server", "Personalizado")
+        elif lobby.proxy:
+            addr = lobby.proxy.address
+            port = lobby.proxy.port
+            pwd = lobby.proxy.get_password()
+            proxy_address_str = f"{addr}:{port}"
+
+            playwright_proxy = {
+                "server": f"http://{proxy_address_str}"
+            }
+            if lobby.proxy.username and pwd:
+                playwright_proxy["username"] = lobby.proxy.username
+                playwright_proxy["password"] = pwd
+
+        proxy_id_str = f"#{lobby.proxy.id}" if lobby.proxy else 'Sem Proxy'
+        print(f"[Auth] Restaurando sessão com Proxy {proxy_id_str} ({proxy_address_str}) para '{lobby.nickname}'...")
+        proxy_context = browser.new_context(proxy=playwright_proxy)
+
+        temp_ip_page = proxy_context.new_page()
+        external_ip = "Desconhecido"
+        try:
+            temp_ip_page.goto("https://api.ipify.org?format=json", timeout=15000)
+            ip_data = temp_ip_page.inner_text("body")
+            external_ip = json.loads(ip_data).get("ip", "Desconhecido")
+        except Exception as ip_err:
+            print(f"[Auth AVISO] Não foi possível verificar o IP externo: {ip_err}")
+        finally:
+            try:
+                temp_ip_page.close()
+            except:
+                pass
+
+        try:
+            cls.verify_and_record_ip(lobby, external_ip)
+        except Exception as sec_err:
+            proxy_context.close()
+            raise sec_err
 
         # Injeta cookies formatados no contexto
         formatted_cookies = cls._format_cookies_for_playwright(cookies)
@@ -191,7 +190,7 @@ class AuthManager:
 
         # Tenta conectar ao Ikariam sem proxy
         try:
-            print(f"[Auth] Conectando ao Ikariam sem proxy...")
+            print(f"[Auth] Conectando ao Ikariam utilizando o proxy configurado...")
             page.goto("https://lobby.ikariam.gameforge.com/pt_BR/", timeout=45000, wait_until="commit")
         except Exception as conn_err:
             proxy_context.close()
