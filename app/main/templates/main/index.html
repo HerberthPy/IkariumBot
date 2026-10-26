@@ -778,7 +778,7 @@
     const btnIcon = isPlayingActive ? 'bi-stop-circle-fill' : 'bi-play-circle-fill';
 
     const conteudoPainel = `
-      <div class="col-12 py-3">
+      <div class="col-12 py-3" id="wrapper-conta-${contaId}">
         <!-- HEADER DA CONTA -->
         <div class="card border-0 shadow-sm rounded-4 p-3 mb-4 bg-body-tertiary border-top border-warning border-4">
           <div class="d-flex flex-column flex-md-row justify-content-between align-items-md-center gap-3">
@@ -812,7 +812,25 @@
             </li>
             <li class="nav-item">
               <button class="btn btn-outline-secondary fw-semibold px-4 py-2 shadow-sm d-flex align-items-center sub-conta-btn" id="subtab-automacao-${contaId}" onclick="switchSubContaTab('pane-automacao-${contaId}', this)">
-                <i class="bi bi-robot me-2"></i> Automação
+                <i class="bi bi-robot me-2"></i> Automação Geral
+              </button>
+            </li>
+
+            <!-- SUB-ABAS DE CONFIGURAÇÃO COM BOTÃO 'X' PARA FECHAR -->
+            <li class="nav-item d-none" id="li-subtab-config-recursos-${contaId}">
+              <button class="btn btn-outline-secondary fw-semibold px-3 py-2 shadow-sm d-flex align-items-center gap-2 sub-conta-btn" id="subtab-config-recursos-${contaId}" onclick="switchSubContaTab('pane-config-recursos-${contaId}', this)">
+                <i class="bi bi-gear-fill text-primary"></i> Config: Recursos
+                <span class="badge bg-light text-dark rounded-circle p-1 ms-1" style="font-size: 0.6rem; cursor: pointer;" onclick="fecharSubAbaConfig(event, ${contaId}, 'recursos')" title="Fechar Aba">
+                  <i class="bi bi-x fw-bold"></i>
+                </span>
+              </button>
+            </li>
+            <li class="nav-item d-none" id="li-subtab-config-militar-${contaId}">
+              <button class="btn btn-outline-secondary fw-semibold px-3 py-2 shadow-sm d-flex align-items-center gap-2 sub-conta-btn" id="subtab-config-militar-${contaId}" onclick="switchSubContaTab('pane-config-militar-${contaId}', this)">
+                <i class="bi bi-gear-fill text-warning"></i> Config: Militar
+                <span class="badge bg-light text-dark rounded-circle p-1 ms-1" style="font-size: 0.6rem; cursor: pointer;" onclick="fecharSubAbaConfig(event, ${contaId}, 'militar')" title="Fechar Aba">
+                  <i class="bi bi-x fw-bold"></i>
+                </span>
               </button>
             </li>
           </ul>
@@ -848,15 +866,91 @@
             </div>
           </div>
 
-          <!-- SUB-ABA 3: AUTOMAÇÃO -->
+          <!-- SUB-ABA 3: AUTOMAÇÃO (COM OS CARDS) -->
           <div id="pane-automacao-${contaId}" class="sub-conta-pane d-none">
+            <div class="card border-0 shadow-sm rounded-4 p-4 bg-body-tertiary mb-4">
+              <h4 class="fw-bold mb-2"><i class="bi bi-robot me-2 text-primary"></i> Painel de Automação</h4>
+              <p class="text-muted small">Selecione abaixo o módulo que deseja configurar para esta conta.</p>
+            </div>
+
+            <!-- GRID DE CARDS QUADRADOS -->
+            <div class="row g-4 mb-4">
+              <!-- Card Recursos -->
+              <div class="col-6 col-md-3">
+                <div class="card border-0 shadow-sm rounded-4 p-4 text-center bg-body-tertiary h-100" onclick="abrirConfigSubTab(${contaId}, 'recursos')" style="cursor: pointer; transition: transform 0.2s;">
+                  <div class="card-body d-flex flex-column align-items-center justify-content-center">
+                    <div class="bg-primary-subtle text-primary p-3 rounded-circle mb-3 d-flex align-items-center justify-content-center" style="width: 60px; height: 60px;">
+                      <i class="bi bi-boxes fs-3"></i>
+                    </div>
+                    <h6 class="fw-bold mb-1">Módulo Recursos</h6>
+                    <p class="text-secondary extra-small mb-0">Configurar coletas e serrarias</p>
+                  </div>
+                </div>
+              </div>
+
+              <!-- Card Militar -->
+              <div class="col-6 col-md-3">
+                <div class="card border-0 shadow-sm rounded-4 p-4 text-center bg-body-tertiary h-100" onclick="abrirConfigSubTab(${contaId}, 'militar')" style="cursor: pointer; transition: transform 0.2s;">
+                  <div class="card-body d-flex flex-column align-items-center justify-content-center">
+                    <div class="bg-warning-subtle text-warning p-3 rounded-circle mb-3 d-flex align-items-center justify-content-center" style="width: 60px; height: 60px;">
+                      <i class="bi bi-shield-fill-exclamation fs-3"></i>
+                    </div>
+                    <h6 class="fw-bold mb-1">Módulo Militar</h6>
+                    <p class="text-secondary extra-small mb-0">Defesa e movimentação de tropas</p>
+                  </div>
+                </div>
+              </div>
+
+              <!-- Card Módulo Futuro (Informativo / Não Clicável) -->
+              <div class="col-6 col-md-3">
+                <div class="card border-0 shadow-sm rounded-4 p-4 text-center bg-body-tertiary h-100 opacity-75">
+                  <div class="card-body d-flex flex-column align-items-center justify-content-center">
+                    <div class="bg-success-subtle text-success p-3 rounded-circle mb-3 d-flex align-items-center justify-content-center" style="width: 60px; height: 60px;">
+                      <i class="bi bi-plus-circle-fill fs-3"></i>
+                    </div>
+                    <h6 class="fw-bold mb-1">Módulo Futuro</h6>
+                    <p class="text-secondary extra-small mb-0">Novas automações em breve</p>
+                  </div>
+                </div>
+              </div>
+            </div>
+
             <div class="card border-0 shadow-sm rounded-4 p-4 bg-body-tertiary">
-              <h4 class="fw-bold mb-3"><i class="bi bi-robot me-2 text-primary"></i> Configurações de Automação</h4>
-              <p class="text-muted">Gerencie os comportamentos automáticos e tarefas agendadas para esta conta específica.</p>
-              <hr class="text-secondary opacity-25">
-              <div class="form-check form-switch fs-5 mb-3">
+              <div class="form-check form-switch fs-5 mb-0">
                 <input class="form-check-input" type="checkbox" id="autoSyncCheck-${contaId}" onchange="toggleAutomacaoConta(${contaId})">
-                <label class="form-check-label fs-6 fw-semibold" for="autoSyncCheck-${contaId}">Sincronização e Coleta Automática</label>
+                <label class="form-check-label fs-6 fw-semibold" for="autoSyncCheck-${contaId}">Sincronização e Coleta Automática Global</label>
+              </div>
+            </div>
+          </div>
+
+          <!-- PAINEL CONFIG: RECURSOS -->
+          <div id="pane-config-recursos-${contaId}" class="sub-conta-pane d-none">
+            <div class="card border-0 shadow-sm rounded-4 p-4 bg-body-tertiary">
+              <div class="d-flex justify-content-between align-items-center mb-3">
+                <h4 class="fw-bold mb-0 text-primary"><i class="bi bi-gear-fill me-2"></i>Configurações do Módulo de Recursos</h4>
+                <button class="btn btn-outline-secondary btn-sm" onclick="voltarParaAutomacaoMain(${contaId})"><i class="bi bi-arrow-left me-1"></i> Voltar</button>
+              </div>
+              <p class="text-muted small">Gerencie as regras de envio automático de recursos, níveis de serrarias e pedreiras.</p>
+              <hr class="text-secondary opacity-25">
+              <div class="mb-3">
+                <label class="form-label small fw-semibold">Meta de Madeira por Cidade</label>
+                <input type="number" class="form-control" placeholder="Ex: 50000">
+              </div>
+            </div>
+          </div>
+
+          <!-- PAINEL CONFIG: MILITAR -->
+          <div id="pane-config-militar-${contaId}" class="sub-conta-pane d-none">
+            <div class="card border-0 shadow-sm rounded-4 p-4 bg-body-tertiary">
+              <div class="d-flex justify-content-between align-items-center mb-3">
+                <h4 class="fw-bold mb-0 text-warning"><i class="bi bi-gear-fill me-2"></i>Configurações do Módulo Militar</h4>
+                <button class="btn btn-outline-secondary btn-sm" onclick="voltarParaAutomacaoMain(${contaId})"><i class="bi bi-arrow-left me-1"></i> Voltar</button>
+              </div>
+              <p class="text-muted small">Configure alertas de ataques recebidos e rotas de fuga automáticas.</p>
+              <hr class="text-secondary opacity-25">
+              <div class="form-check form-switch mb-3">
+                <input class="form-check-input" type="checkbox" id="alertaAtaque-${contaId}">
+                <label class="form-check-label fw-semibold" for="alertaAtaque-${contaId}">Ativar Alerta Sonoro/Visual de Ataque</label>
               </div>
             </div>
           </div>
@@ -882,6 +976,33 @@
     });
     clickedBtn.classList.remove('btn-outline-secondary');
     clickedBtn.classList.add('btn-primary', 'active');
+  }
+
+  function abrirConfigSubTab(contaId, modulo) {
+    const liTab = document.getElementById(`li-subtab-config-${modulo}-${contaId}`);
+    const btnTab = document.getElementById(`subtab-config-${modulo}-${contaId}`);
+
+    if (liTab) liTab.classList.remove('d-none');
+    if (btnTab) btnTab.click();
+  }
+
+  function fecharSubAbaConfig(event, contaId, modulo) {
+    event.stopPropagation();
+    const liTab = document.getElementById(`li-subtab-config-${modulo}-${contaId}`);
+    const btnAuto = document.getElementById(`subtab-automacao-${contaId}`);
+
+    if (liTab) liTab.classList.add('d-none');
+
+    if (btnAuto) {
+      btnAuto.click();
+    } else {
+      voltarParaAutomacaoMain(contaId);
+    }
+  }
+
+  function voltarParaAutomacaoMain(contaId) {
+    const btnAuto = document.getElementById(`subtab-automacao-${contaId}`);
+    if (btnAuto) btnAuto.click();
   }
 
   function carregarDadosPainelConta(contaId) {
