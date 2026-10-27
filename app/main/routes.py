@@ -4,13 +4,12 @@ import base64
 from flask import render_template, request, redirect, url_for, flash, current_app, jsonify, session
 from flask_login import login_required, current_user
 from app import db
-from app.models import Proxy, Lobby, User, Conta, get_brasilia_time
+from app.models import Proxy, Lobby, User, Conta, Cidade, Ilha, get_brasilia_time
 from app.main import main_bp
 from app.main.tasks import sync_webshare_job
 from app.main.decorators import admin_required, user_active_required
 from app.bot import BotManager
 from playwright.sync_api import sync_playwright
-import re
 import threading
 
 ACTIVE_MANUAL_BROWSERS = {}
@@ -21,7 +20,6 @@ ACTIVE_MANUAL_BROWSERS = {}
 @login_required
 @user_active_required
 def index():
-    """Painel do Utilizador: Carrega Lobbies, Proxies e Dados Consolidados do Império."""
     if current_user.is_admin == 1:
         return redirect(url_for('main.admin_dashboard'))
 
@@ -42,7 +40,6 @@ def index():
 
     empire_data = []
 
-    # Função auxiliar para formatar o rendimento no mesmo padrão da aba individual (removendo os 2 últimos dígitos)
     def formatar_rendimento_sistema(raw_rend):
         if not raw_rend:
             return "+0/h"
@@ -52,12 +49,9 @@ def index():
             digits = "".join(c for c in str_val if c.isdigit())
             if not digits:
                 return "+0/h"
-
-            # Remove os 2 últimos dígitos (centavos/decimais)
             int_part = int(digits[:-2]) if len(digits) > 2 else 0
             if int_part == 0:
                 return "+0/h"
-
             formatted_num = f"{int_part:,}".replace(",", ".")
             return f"{sinal}{formatted_num}/h"
         except Exception:
@@ -78,7 +72,6 @@ def index():
             if not conta.ativo:
                 continue
 
-            # Ouro bruto da conta
             ouro_int_val = 0
             if conta.ouro:
                 try:
@@ -90,7 +83,6 @@ def index():
                     ouro_int_val = 0
             lobby_ouro_raw += ouro_int_val
 
-            # Rendimento bruto da conta (removendo os 2 últimos dígitos)
             rendimento_int_val = 0
             if conta.ouro_rendimento:
                 try:
@@ -102,22 +94,12 @@ def index():
                     rendimento_int_val = 0
             lobby_rendimento_raw += rendimento_int_val
 
-            cidades_list = []
-            if conta.cidades_detalhes:
-                try:
-                    cidades_list = json.loads(conta.cidades_detalhes)
-                except:
-                    cidades_list = []
-
-            c_madeira, c_vinho, c_marmore, c_cristal, c_enxofre = 0, 0, 0, 0, 0
-
-            for cid in cidades_list:
-                recs = cid.get('recursos', {})
-                c_madeira += int(str(recs.get('madeira', '0')).replace('.', '')) if recs.get('madeira') else 0
-                c_vinho += int(str(recs.get('vinho', '0')).replace('.', '')) if recs.get('vinho') else 0
-                c_marmore += int(str(recs.get('marmore', '0')).replace('.', '')) if recs.get('marmore') else 0
-                c_cristal += int(str(recs.get('cristal', '0')).replace('.', '')) if recs.get('cristal') else 0
-                c_enxofre += int(str(recs.get('enxofre', '0')).replace('.', '')) if recs.get('enxofre') else 0
+            recs_totais_conta = conta.recursos_totais_imperio
+            c_madeira = recs_totais_conta["madeira"]
+            c_vinho = recs_totais_conta["vinho"]
+            c_marmore = recs_totais_conta["marmore"]
+            c_cristal = recs_totais_conta["cristal"]
+            c_enxofre = recs_totais_conta["enxofre"]
 
             lobby_madeira += c_madeira
             lobby_vinho += c_vinho
@@ -131,11 +113,11 @@ def index():
                 'nome_usuario': conta.nome_usuario,
                 'ouro_texto': f"{ouro_int_val:,}".replace(",", ".") if ouro_int_val > 0 else "0",
                 'ouro_rendimento_texto': formatar_rendimento_sistema(conta.ouro_rendimento),
-                'madeira': c_madeira,
-                'vinho': c_vinho,
-                'marmore': c_marmore,
-                'cristal': c_cristal,
-                'enxofre': c_enxofre
+                'madeira': int(c_madeira),
+                'vinho': int(c_vinho),
+                'marmore': int(c_marmore),
+                'cristal': int(c_cristal),
+                'enxofre': int(c_enxofre)
             })
 
         total_ouro_geral += lobby_ouro_raw
@@ -157,11 +139,11 @@ def index():
             'email': lobby.email,
             'ouro_texto': lobby_ouro_texto,
             'ouro_rendimento_texto': lobby_rendimento_texto,
-            'madeira': lobby_madeira,
-            'vinho': lobby_vinho,
-            'marmore': lobby_marmore,
-            'cristal': lobby_cristal,
-            'enxofre': lobby_enxofre,
+            'madeira': int(lobby_madeira),
+            'vinho': int(lobby_vinho),
+            'marmore': int(lobby_marmore),
+            'cristal': int(lobby_cristal),
+            'enxofre': int(lobby_enxofre),
             'contas': structured_accounts
         })
 
@@ -173,11 +155,11 @@ def index():
     overall_totals = {
         'ouro_texto': overall_totals_ouro_texto,
         'ouro_rendimento_texto': overall_totals_rendimento_texto,
-        'madeira': total_madeira_geral,
-        'vinho': total_vinho_geral,
-        'marmore': total_marmore_geral,
-        'cristal': total_cristal_geral,
-        'enxofre': total_enxofre_geral
+        'madeira': int(total_madeira_geral),
+        'vinho': int(total_vinho_geral),
+        'marmore': int(total_marmore_geral),
+        'cristal': int(total_cristal_geral),
+        'enxofre': int(total_enxofre_geral)
     }
 
     return render_template(
@@ -191,16 +173,12 @@ def index():
     )
 
 
-# ==========================================
-# ROTAS ADMINISTRATIVAS
-# ==========================================
-
 @main_bp.route('/admin/dashboard', methods=['GET'])
 @login_required
 @admin_required
 def admin_dashboard():
     proxies = Proxy.query.all()
-    users = User.query.order_by(User.created_at.desc()).all()
+    users = User.query.filter(User.id != current_user.id).order_by(User.created_at.desc()).all()
     return render_template('main/dashboard.html', proxies=proxies, users=users)
 
 
@@ -220,8 +198,8 @@ def assign_proxy(proxy_id):
 
     if user_id:
         user = User.query.get(user_id)
-        if not user:
-            flash('Utilizador selecionado não encontrado.', 'danger')
+        if not user or user.id == current_user.id:
+            flash('Utilizador selecionado inválido.', 'danger')
             return redirect(url_for('main.admin_dashboard'))
 
         proxy.user_id = user.id
@@ -272,7 +250,7 @@ def admin_users():
 @admin_required
 def toggle_user_status(user_id):
     if user_id == current_user.id:
-        flash('Você não pode desativar sua própria conta de administrador.', 'warning')
+        flash('Você não pode alterar o status da sua própria conta.', 'warning')
         return redirect(url_for('main.admin_dashboard'))
 
     user = User.query.get_or_404(user_id)
@@ -284,9 +262,22 @@ def toggle_user_status(user_id):
     return redirect(url_for('main.admin_dashboard'))
 
 
-# ==========================================
-# ROTAS DO UTILIZADOR - VISÃO DE PROXIES E LOBBIES
-# ==========================================
+@main_bp.route('/admin/users/<int:user_id>/toggle-admin', methods=['POST'])
+@login_required
+@admin_required
+def toggle_user_admin(user_id):
+    if user_id == current_user.id:
+        flash('Você não pode alterar seu próprio nível de privilégio.', 'warning')
+        return redirect(url_for('main.admin_dashboard'))
+
+    user = User.query.get_or_404(user_id)
+    user.is_admin = 0 if user.is_admin == 1 else 1
+    db.session.commit()
+
+    cargo_str = "promovido a Administrador" if user.is_admin == 1 else "rebaixado a Usuário comum"
+    flash(f'O utilizador {user.full_name} foi {cargo_str} com sucesso!', 'success')
+    return redirect(url_for('main.admin_dashboard'))
+
 
 @main_bp.route('/user/proxies', methods=['GET'])
 @login_required
@@ -352,15 +343,13 @@ def create_lobby():
         with open(session_file, "w", encoding="utf-8") as f:
             json.dump(session_data, f, indent=4)
 
+        # Dispara o scraper de forma síncrona garantindo o contexto da aplicação Flask
         try:
             from app.bot.tasks.accounts_scraper import AccountsScraperTask
             db_accounts = AccountsScraperTask.run_sync_for_lobby(novo_lobby)
         except Exception as e:
+            current_app.logger.error(f"[Cadastro] Erro ao varrer contas no novo lobby: {e}")
             db_accounts = []
-
-        if not db_accounts:
-            flash(f'Lobby "{nickname}" cadastrado, mas nenhuma conta foi encontrada na varredura inicial.', "warning")
-            return redirect(url_for('main.index'))
 
         session['temp_selection_data'] = {
             'lobby_id': novo_lobby.id,
@@ -369,7 +358,13 @@ def create_lobby():
         }
         session.modified = True
 
-        flash(f'Lobby "{nickname}" cadastrado com sucesso! Selecione as contas desejadas na aba aberta.', "success")
+        if not db_accounts:
+            flash(
+                f'Lobby "{nickname}" cadastrado, mas nenhuma conta foi encontrada na varredura inicial. Pode sincronizar novamente.',
+                "warning")
+        else:
+            flash(f'Lobby "{nickname}" cadastrado com sucesso! Selecione as contas desejadas.', "success")
+
         return redirect(url_for('main.index'))
 
     return render_template('main/create_lobby.html', user_proxies=proxies_livres)
@@ -425,7 +420,6 @@ def edit_lobby(lobby_id):
             flash('Proxy selecionada inválida ou em uso por outro lobby.', 'danger')
             return redirect(url_for('main.index'))
 
-        BotManager.stop_lobby(lobby.id)
         lobby.proxy_id = novo_proxy.id
 
     lobby.nickname = nickname
@@ -458,7 +452,6 @@ def delete_lobby(lobby_id):
 
     try:
         nickname = lobby.nickname
-        BotManager.stop_lobby(lobby.id)
 
         session_file = lobby.get_session_path()
         if os.path.exists(session_file):
@@ -531,10 +524,6 @@ def varredura_geral_lobby(lobby_id):
         flash(f"Erro ao executar varredura geral: {str(e)}", "danger")
         return redirect(url_for('main.index'))
 
-
-# ==========================================
-# ROTAS DO PAINEL DA CONTA / JOGO MANUAL
-# ==========================================
 
 @main_bp.route('/contas/<int:conta_id>/jogar-manual', methods=['POST'])
 @login_required
@@ -740,41 +729,6 @@ def status_jogo_conta(conta_id):
     return jsonify({'is_playing_active': conta.is_playing_active})
 
 
-@main_bp.route('/contas/<int:conta_id>/sincronizar-painel', methods=['POST'])
-@login_required
-@user_active_required
-def sincronizar_painel_conta(conta_id):
-    conta = Conta.query.join(Lobby).filter(
-        Conta.id == conta_id,
-        Lobby.user_id == current_user.id
-    ).first_or_404()
-
-    lobby = conta.lobby
-
-    try:
-        from app.bot.tasks.server_login import ServerLoginTask
-        sucesso, dados = ServerLoginTask.run_and_get_info(lobby.id, conta.id)
-
-        if sucesso and dados:
-            conta.ouro = dados.get('ouro', '0')
-            conta.ouro_rendimento = dados.get('ouro_rendimento', '0')
-            conta.barcos_totais = dados.get('barcos_totais', 0)
-            conta.barcos_disponiveis = dados.get('barcos_disponiveis', 0)
-            conta.recursos_imperio = json.dumps(dados.get('recursos_imperio', {}))
-            conta.cidades_detalhes = json.dumps(dados.get('cidades', []))
-            conta.ultima_sincronizacao = get_brasilia_time()
-            db.session.commit()
-
-            return jsonify({'success': True, 'message': 'Dados sincronizados e salvos com sucesso!'})
-        else:
-            return jsonify(
-                {'success': False, 'message': 'O bot conectou, mas falhou ao recolher os dados da página.'}), 500
-
-    except Exception as e:
-        db.session.rollback()
-        return jsonify({'success': False, 'message': f'Erro na automação: {str(e)}'}), 500
-
-
 @main_bp.route('/contas/<int:conta_id>/dados-painel', methods=['GET'])
 @login_required
 @user_active_required
@@ -784,6 +738,33 @@ def get_dados_painel_conta(conta_id):
         Lobby.user_id == current_user.id
     ).first_or_404()
 
+    cidades_serializadas = []
+    for cid in conta.cidades:
+        ilha = cid.ilha
+        cidades_serializadas.append({
+            'nome': cid.nome,
+            'posicao_na_ilha': cid.posicao_na_ilha,
+            'populacao_atual': cid.populacao_atual,
+            'populacao_maxima': cid.populacao_maxima,
+            'populacao_livre': cid.populacao_livre,
+            'ilha': {
+                'coordenada_x': ilha.coordenada_x if ilha else 0,
+                'coordenada_y': ilha.coordenada_y if ilha else 0,
+                'tipo_recurso_luxo': ilha.tipo_recurso_luxo if ilha else '',
+                'nivel_serraria': ilha.nivel_serraria if ilha else 0,
+                'nivel_mina_luxo': ilha.nivel_mina_luxo if ilha else 0,
+                'milagre_nome': ilha.milagre_nome if ilha else '',
+                'milagre_nivel': ilha.milagre_nivel if ilha else 0
+            },
+            'recursos': {
+                'madeira': f"{cid.madeira:,.0f}".replace(',', '.'),
+                'vinho': f"{cid.vinho:,.0f}".replace(',', '.'),
+                'marmore': f"{cid.marmore:,.0f}".replace(',', '.'),
+                'cristal': f"{cid.cristal:,.0f}".replace(',', '.'),
+                'enxofre': f"{cid.enxofre:,.0f}".replace(',', '.')
+            }
+        })
+
     return jsonify({
         'servidor': conta.servidor,
         'nome_usuario': conta.nome_usuario,
@@ -791,8 +772,8 @@ def get_dados_painel_conta(conta_id):
         'ouro_rendimento': conta.ouro_rendimento,
         'barcos_totais': conta.barcos_totais,
         'barcos_disponiveis': conta.barcos_disponiveis,
-        'recursos_imperio': json.loads(conta.recursos_imperio or '{}'),
-        'cidades': json.loads(conta.cidades_detalhes or '[]'),
+        'recursos_imperio': conta.recursos_totais_imperio,
+        'cidades': cidades_serializadas,
         'ultima_sincronizacao': conta.ultima_sincronizacao.strftime(
             '%d/%m/%Y %H:%M') if conta.ultima_sincronizacao else 'Nunca',
         'is_playing_active': conta.is_playing_active,

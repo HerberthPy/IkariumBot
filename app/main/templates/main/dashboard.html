@@ -16,12 +16,10 @@
       </a>
 
       <div class="d-flex align-items-center gap-3">
-        <!-- Seletor de Tema Claro / Escuro -->
         <button class="btn btn-outline-secondary btn-sm rounded-circle p-2 d-flex align-items-center justify-content-center" id="themeToggleBtn" type="button" title="Alternar Tema" style="width: 36px; height: 36px;">
           <i class="bi bi-moon-stars-fill" id="themeToggleIcon"></i>
         </button>
 
-        <!-- Menu / Logout -->
         <span class="text-secondary small d-none d-sm-inline">
           <i class="bi bi-person-circle me-1"></i> <strong>{{ current_user.full_name.split()[:2] | join(' ') }}</strong>
         </span>
@@ -33,13 +31,10 @@
   </nav>
 
   <main class="container pb-5">
-    <!-- Cabeçalho Principal -->
     <div class="d-flex flex-column flex-md-row justify-content-between align-items-md-center mb-4 gap-3">
       <div>
-        <h2 class="h3 fw-bold mb-1">
-          <i class="bi bi-shield-lock text-primary me-2"></i>Painel Administrativo
-        </h2>
-        <p class="text-secondary small mb-0">Gerencie o pool global de proxies, atribua conexões e controle as contas do sistema</p>
+        <h2 class="h3 fw-bold mb-1"><i class="bi bi-shield-lock text-primary me-2"></i>Painel Administrativo</h2>
+        <p class="text-secondary small mb-0">Gerencie proxies, privilégios de administradores e controle o sistema</p>
       </div>
 
       <div>
@@ -63,7 +58,6 @@
       {% endif %}
     {% endwith %}
 
-    <!-- Navegação por Abas (Linha Horizontal) -->
     <div class="card border-0 shadow-sm rounded-4 p-2 mb-4 bg-body-tertiary">
       <div class="d-flex flex-row flex-wrap gap-2" id="adminTabNav">
         <button class="btn btn-primary rounded-3 px-4 py-2 fw-semibold d-flex align-items-center tab-btn active" onclick="switchTab('proxies-pane', this)">
@@ -72,137 +66,53 @@
         <button class="btn btn-outline-secondary rounded-3 px-4 py-2 fw-semibold d-flex align-items-center tab-btn" onclick="switchTab('users-pane', this)">
           <i class="bi bi-people-fill me-2 text-success"></i>Usuários Cadastrados
         </button>
-        <button class="btn btn-outline-secondary rounded-3 px-4 py-2 fw-semibold d-flex align-items-center disabled opacity-50" disabled>
-          <i class="bi bi-plus-circle me-2"></i>Módulo Futuro <span class="badge bg-secondary ms-2 extra-small">Em breve</span>
-        </button>
       </div>
     </div>
 
-    <!-- ABA 1: GESTÃO DE PROXIES -->
+    <!-- ABA 1: PROXIES -->
     <div id="proxies-pane" class="tab-pane-custom">
-      <!-- Filtros por Status / Disponibilidade -->
-      <div class="card border-0 shadow-sm rounded-4 p-3 mb-4 bg-body-tertiary">
-        <div class="d-flex flex-wrap gap-2 align-items-center">
-          <span class="small fw-bold text-secondary me-2"><i class="bi bi-funnel me-1"></i> Filtrar:</span>
-          <button class="btn btn-sm btn-outline-primary rounded-pill px-3 active" onclick="filterProxies('all', this)">Todos</button>
-          <button class="btn btn-sm btn-outline-success rounded-pill px-3" onclick="filterProxies('active', this)">Ativos</button>
-          <button class="btn btn-sm btn-outline-danger rounded-pill px-3" onclick="filterProxies('inactive', this)">Inativos</button>
-          <button class="btn btn-sm btn-outline-info rounded-pill px-3" onclick="filterProxies('available', this)">Disponíveis (Sem Usuário)</button>
-          <button class="btn btn-sm btn-outline-warning rounded-pill px-3" onclick="filterProxies('unavailable', this)">Indisponíveis (Em Uso)</button>
-        </div>
-      </div>
-
-      <!-- Tabela / Lista de Proxies -->
       <div class="card border-0 shadow-sm rounded-4 overflow-hidden bg-body-tertiary">
         {% if proxies %}
-        <!-- VISUALIZAÇÃO DESKTOP -->
-        <div class="table-responsive d-none d-md-block">
+        <div class="table-responsive">
           <table class="table table-hover align-middle mb-0 w-100">
             <thead class="table-light border-bottom">
               <tr>
-                <th scope="col" class="ps-4 py-3 small fw-semibold">ENDEREÇO / IP</th>
-                <th scope="col" class="py-3 small fw-semibold">PORTA</th>
-                <th scope="col" class="py-3 small fw-semibold">PAÍS</th>
-                <th scope="col" class="py-3 small fw-semibold">SENHA</th>
-                <th scope="col" class="py-3 small fw-semibold">STATUS</th>
-                <th scope="col" class="py-3 small fw-semibold">USUÁRIO ATRIBUÍDO</th>
-                <th scope="col" class="pe-4 py-3 text-end small fw-semibold">AÇÕES</th>
+                <th class="ps-4 py-3 small fw-semibold">ENDEREÇO / IP</th>
+                <th class="py-3 small fw-semibold">PORTA</th>
+                <th class="py-3 small fw-semibold">PAÍS</th>
+                <th class="py-3 small fw-semibold">STATUS</th>
+                <th class="py-3 small fw-semibold">USUÁRIO ATRIBUÍDO</th>
+                <th class="pe-4 py-3 text-end small fw-semibold">AÇÕES</th>
               </tr>
             </thead>
             <tbody>
               {% for proxy in proxies %}
-              <tr class="proxy-row"
-                  data-status="{{ 'active' if proxy.status == 'ATIVO' else 'inactive' }}"
-                  data-assigned="{{ 'unavailable' if proxy.is_assigned else 'available' }}">
-
-                <td class="ps-4 py-3 fw-semibold">
-                  <i class="bi bi-hdd-network text-primary me-2"></i><code>{{ proxy.address }}</code>
-                </td>
-
-                <td class="py-3 text-secondary">
-                  <code>{{ proxy.port }}</code>
-                </td>
-
+              <tr>
+                <td class="ps-4 py-3 fw-semibold"><code>{{ proxy.address }}</code></td>
+                <td class="py-3"><code>{{ proxy.port }}</code></td>
+                <td class="py-3">{{ proxy.country or '-' }}</td>
                 <td class="py-3">
-                  {% if proxy.country %}
-                    <span class="badge bg-secondary-subtle text-secondary border rounded-pill px-2 py-1 small">
-                      {{ proxy.country }}
-                    </span>
-                  {% else %}
-                    <span class="text-muted small">-</span>
-                  {% endif %}
+                  {% if proxy.status == "ATIVO" %}<span class="badge bg-success-subtle rounded-pill px-3 py-1">ATIVO</span>
+                  {% else %}<span class="badge bg-danger-subtle rounded-pill px-3 py-1">INATIVO</span>{% endif %}
                 </td>
-
                 <td class="py-3">
-                  <div class="d-inline-flex align-items-center rounded-3 px-2 py-1 border bg-body">
-                    <input
-                      type="password"
-                      value="{{ proxy.get_password() }}"
-                      class="form-control-plaintext form-control-sm py-0 pe-2 text-secondary fw-monospace border-0"
-                      readonly
-                      id="pwd-{{ loop.index }}"
-                      style="width: 90px;"
-                    >
-                    <button
-                      type="button"
-                      class="btn btn-link p-0 text-secondary shadow-none border-0 ms-1"
-                      onclick="togglePassword('pwd-{{ loop.index }}', 'icon-{{ loop.index }}')"
-                      title="Mostrar/Ocultar Senha"
-                    >
-                      <i class="bi bi-eye-slash-fill" id="icon-{{ loop.index }}"></i>
-                    </button>
-                  </div>
+                  {% if proxy.assigned_user %}<span class="badge bg-warning-subtle rounded-pill px-3 py-1">{{ proxy.assigned_user.full_name }}</span>
+                  {% else %}<span class="badge bg-success-subtle rounded-pill px-3 py-1">Disponível</span>{% endif %}
                 </td>
-
-                <td class="py-3">
-                  {% if proxy.status == "ATIVO" %}
-                    <span class="badge bg-success-subtle rounded-pill px-3 py-1 fw-semibold small">
-                      <i class="bi bi-check-circle-fill me-1"></i> ATIVO
-                    </span>
-                  {% else %}
-                    <span class="badge bg-danger-subtle rounded-pill px-3 py-1 fw-semibold small">
-                      <i class="bi bi-x-circle-fill me-1"></i> INATIVO
-                    </span>
-                  {% endif %}
-                </td>
-
-                <td class="py-3">
-                  {% if proxy.assigned_user %}
-                    <span class="badge bg-warning-subtle rounded-pill px-3 py-1.5 fw-semibold">
-                      <i class="bi bi-person-fill me-1"></i> {{ proxy.assigned_user.full_name }}
-                    </span>
-                    {% if proxy.is_in_use %}
-                      <span class="badge bg-primary-subtle text-primary border rounded-pill ms-1 small" title="Vinculado a um Lobby">
-                        <i class="bi bi-controller me-1"></i>Em Lobby
-                      </span>
-                    {% endif %}
-                  {% else %}
-                    <span class="badge bg-success-subtle rounded-pill px-3 py-1.5 fw-semibold">
-                      <i class="bi bi-unlock-fill me-1"></i> Disponível
-                    </span>
-                  {% endif %}
-                </td>
-
                 <td class="pe-4 py-3 text-end">
                   {% if proxy.assigned_user %}
                     <form action="{{ url_for('main.unassign_proxy', proxy_id=proxy.id) }}" method="POST" class="d-inline">
-                      <button type="submit" class="btn btn-sm btn-outline-danger rounded-3" title="Retirar proxy deste usuário">
-                        <i class="bi bi-person-x-fill me-1"></i> Desvincular
-                      </button>
+                      <button type="submit" class="btn btn-sm btn-outline-danger rounded-3"><i class="bi bi-person-x-fill me-1"></i> Desvincular</button>
                     </form>
                   {% else %}
-                    <form action="{{ url_for('main.assign_proxy', proxy_id=proxy.id) }}" method="POST" class="d-inline-flex align-items-center gap-1 justify-content-end">
-                      <select name="user_id" class="form-select form-select-sm rounded-3" style="width: 160px;" required>
+                    <form action="{{ url_for('main.assign_proxy', proxy_id=proxy.id) }}" method="POST" class="d-inline-flex gap-1">
+                      <select name="user_id" class="form-select form-select-sm rounded-3" style="width: 150px;" required>
                         <option value="" disabled selected>Atribuir a...</option>
                         {% for user in users %}
-                          {% if user.is_admin == 0 %}
-                            <option value="{{ user.id }}">{{ user.full_name }}</option>
-                          {% endif %}
+                          <option value="{{ user.id }}">{{ user.full_name }}</option>
                         {% endfor %}
                       </select>
-                      <button type="submit" class="btn btn-sm btn-primary rounded-3">
-                        <i class="bi bi-check-lg"></i>
-                      </button>
+                      <button type="submit" class="btn btn-sm btn-primary rounded-3"><i class="bi bi-check-lg"></i></button>
                     </form>
                   {% endif %}
                 </td>
@@ -211,214 +121,82 @@
             </tbody>
           </table>
         </div>
-
-        <!-- VISUALIZAÇÃO MOBILE -->
-        <div class="d-md-none p-3">
-          {% for proxy in proxies %}
-          <div class="card mb-3 shadow-sm border-0 bg-body proxy-row"
-               data-status="{{ 'active' if proxy.status == 'ATIVO' else 'inactive' }}"
-               data-assigned="{{ 'unavailable' if proxy.is_assigned else 'available' }}">
-            <div class="card-body">
-              <div class="d-flex justify-content-between align-items-center mb-2">
-                <h6 class="fw-bold mb-0 text-primary">
-                  <i class="bi bi-hdd-network me-1"></i> {{ proxy.address }}:{{ proxy.port }}
-                </h6>
-
-                {% if proxy.status == "ATIVO" %}
-                  <span class="badge bg-success-subtle border rounded-pill">ATIVO</span>
-                {% else %}
-                  <span class="badge bg-danger-subtle border rounded-pill">INATIVO</span>
-                {% endif %}
-              </div>
-
-              <div class="mb-3 text-muted small">
-                <div class="d-flex align-items-center mb-1">
-                  <strong class="me-2" style="min-width: 80px;">Atribuído:</strong>
-                  {% if proxy.assigned_user %}
-                    <span class="badge bg-warning-subtle border px-2 py-1">{{ proxy.assigned_user.full_name }}</span>
-                  {% else %}
-                    <span class="badge bg-success-subtle border px-2 py-1">Disponível</span>
-                  {% endif %}
-                </div>
-              </div>
-
-              <div class="border-top pt-2 mt-2 text-end">
-                {% if proxy.assigned_user %}
-                  <form action="{{ url_for('main.unassign_proxy', proxy_id=proxy.id) }}" method="POST">
-                    <button type="submit" class="btn btn-sm btn-outline-danger w-100 rounded-3">
-                      <i class="bi bi-person-x-fill me-1"></i> Desvincular Usuário
-                    </button>
-                  </form>
-                {% else %}
-                  <form action="{{ url_for('main.assign_proxy', proxy_id=proxy.id) }}" method="POST" class="d-flex gap-2">
-                    <select name="user_id" class="form-select form-select-sm rounded-3" required>
-                      <option value="" disabled selected>Selecionar Usuário...</option>
-                      {% for user in users %}
-                        {% if user.is_admin == 0 %}
-                          <option value="{{ user.id }}">{{ user.full_name }}</option>
-                        {% endif %}
-                      {% endfor %}
-                    </select>
-                    <button type="submit" class="btn btn-sm btn-primary rounded-3 fw-semibold px-3">
-                      Atribuir
-                    </button>
-                  </form>
-                {% endif %}
-              </div>
-            </div>
-          </div>
-          {% endfor %}
-        </div>
-
         {% else %}
         <div class="card shadow-sm border-0 py-5 text-center bg-body-tertiary">
-          <div class="card-body">
-            <div class="text-secondary mb-3">
-              <i class="bi bi-diagram-3 fs-1 opacity-50"></i>
-            </div>
-            <h5 class="fw-bold mb-1">Nenhum proxy cadastrado</h5>
-            <p class="text-secondary small mb-3">Sincronize com a API do Webshare para preencher o pool global de proxies.</p>
-          </div>
+          <h5 class="fw-bold mb-1">Nenhum proxy cadastrado</h5>
         </div>
         {% endif %}
       </div>
-    </div> <!-- FIM DA ABA PROXIES -->
+    </div>
 
-    <!-- ABA 2: USUÁRIOS CADASTRADOS -->
+    <!-- ABA 2: USUÁRIOS (O próprio admin logado está excluído da lista) -->
     <div id="users-pane" class="tab-pane-custom d-none">
       <div class="card border-0 shadow-sm rounded-4 overflow-hidden bg-body-tertiary">
         {% if users %}
-        <!-- VISUALIZAÇÃO DESKTOP -->
-        <div class="table-responsive d-none d-md-block">
+        <div class="table-responsive">
           <table class="table table-hover align-middle mb-0 w-100">
             <thead class="table-light border-bottom">
               <tr>
-                <th scope="col" class="ps-4 py-3 small fw-semibold">ID</th>
-                <th scope="col" class="py-3 small fw-semibold">NOME COMPLETO</th>
-                <th scope="col" class="py-3 small fw-semibold">E-MAIL</th>
-                <th scope="col" class="py-3 small fw-semibold">FUNÇÃO</th>
-                <th scope="col" class="py-3 small fw-semibold">STATUS</th>
-                <th scope="col" class="py-3 small fw-semibold">PROXIES</th>
-                <th scope="col" class="py-3 small fw-semibold">LOBBIES</th>
-                <th scope="col" class="pe-4 py-3 text-end small fw-semibold">AÇÕES</th>
+                <th class="ps-4 py-3 small fw-semibold">ID</th>
+                <th class="py-3 small fw-semibold">NOME COMPLETO</th>
+                <th class="py-3 small fw-semibold">E-MAIL</th>
+                <th class="py-3 small fw-semibold">FUNÇÃO</th>
+                <th class="py-3 small fw-semibold">STATUS</th>
+                <th class="pe-4 py-3 text-end small fw-semibold">AÇÕES</th>
               </tr>
             </thead>
             <tbody>
               {% for u in users %}
-              {% if u.id != current_user.id %}
               <tr>
                 <td class="ps-4 py-3 text-secondary small fw-monospace">#{{ u.id }}</td>
-                <td class="py-3 fw-semibold">
-                  <i class="bi bi-person-circle text-primary me-2"></i>{{ u.full_name }}
-                </td>
+                <td class="py-3 fw-semibold"><i class="bi bi-person-circle text-primary me-2"></i>{{ u.full_name }}</td>
                 <td class="py-3 text-secondary small">{{ u.email }}</td>
                 <td class="py-3">
                   {% if u.is_admin == 1 %}
-                    <span class="badge bg-danger-subtle rounded-pill px-3 py-1 fw-semibold small">
-                      <i class="bi bi-shield-lock-fill me-1"></i> Admin
-                    </span>
+                    <span class="badge bg-danger-subtle rounded-pill px-3 py-1 fw-semibold"><i class="bi bi-shield-lock-fill me-1"></i> Admin</span>
                   {% else %}
-                    <span class="badge bg-secondary-subtle rounded-pill px-3 py-1 fw-semibold small">
-                      Usuário
-                    </span>
+                    <span class="badge bg-secondary-subtle rounded-pill px-3 py-1 fw-semibold">Usuário</span>
                   {% endif %}
                 </td>
                 <td class="py-3">
-                  {% if u.is_active %}
-                    <span class="badge bg-success-subtle rounded-pill px-3 py-1 fw-semibold small">
-                      <i class="bi bi-check-circle-fill me-1"></i> Ativo
-                    </span>
-                  {% else %}
-                    <span class="badge bg-danger-subtle rounded-pill px-3 py-1 fw-semibold small">
-                      <i class="bi bi-x-circle-fill me-1"></i> Inativo
-                    </span>
-                  {% endif %}
-                </td>
-                <td class="py-3">
-                  <span class="badge bg-info-subtle border rounded-pill px-3 py-1.5 fw-semibold">
-                    <i class="bi bi-hdd-network me-1"></i> {{ u.assigned_proxies | length }}
-                  </span>
-                </td>
-                <td class="py-3">
-                  <span class="badge bg-primary-subtle text-primary border border-primary-subtle rounded-pill px-3 py-1.5 fw-semibold">
-                    <i class="bi bi-controller me-1"></i> {{ u.lobbies | length }}
-                  </span>
+                  {% if u.is_active %}<span class="badge bg-success-subtle rounded-pill px-3 py-1">Ativo</span>
+                  {% else %}<span class="badge bg-danger-subtle rounded-pill px-3 py-1">Inativo</span>{% endif %}
                 </td>
                 <td class="pe-4 py-3 text-end">
-                  <form action="{{ url_for('main.toggle_user_status', user_id=u.id) }}" method="POST" class="d-inline">
-                    {% if u.is_active %}
-                      <button type="submit" class="btn btn-sm btn-outline-danger rounded-3 fw-semibold" title="Desativar conta do usuário">
-                        <i class="bi bi-person-x-fill me-1"></i> Desativar
+                  <!-- Botão Promover / Rebaixar Admin -->
+                  <form action="{{ url_for('main.toggle_user_admin', user_id=u.id) }}" method="POST" class="d-inline me-1">
+                    {% if u.is_admin == 1 %}
+                      <button type="submit" class="btn btn-sm btn-outline-warning rounded-3 fw-semibold" title="Remover privilégios de Admin">
+                        <i class="bi bi-shield-slash me-1"></i> Rebaixar
                       </button>
                     {% else %}
-                      <button type="submit" class="btn btn-sm btn-outline-success rounded-3 fw-semibold" title="Ativar conta do usuário">
-                        <i class="bi bi-person-check-fill me-1"></i> Ativar
+                      <button type="submit" class="btn btn-sm btn-outline-primary rounded-3 fw-semibold" title="Promover a Administrador">
+                        <i class="bi bi-shield-check me-1"></i> Tornar Admin
                       </button>
+                    {% endif %}
+                  </form>
+
+                  <!-- Botão Ativar / Desativar Status -->
+                  <form action="{{ url_for('main.toggle_user_status', user_id=u.id) }}" method="POST" class="d-inline">
+                    {% if u.is_active %}
+                      <button type="submit" class="btn btn-sm btn-outline-danger rounded-3 fw-semibold">Desativar</button>
+                    {% else %}
+                      <button type="submit" class="btn btn-sm btn-outline-success rounded-3 fw-semibold">Ativar</button>
                     {% endif %}
                   </form>
                 </td>
               </tr>
-              {% endif %}
               {% endfor %}
             </tbody>
           </table>
         </div>
-
-        <!-- VISUALIZAÇÃO MOBILE -->
-        <div class="d-md-none p-3">
-          {% for u in users %}
-          {% if u.id != current_user.id %}
-          <div class="card mb-3 shadow-sm border-0 bg-body">
-            <div class="card-body">
-              <div class="d-flex justify-content-between align-items-center mb-2">
-                <h6 class="fw-bold mb-0">
-                  <i class="bi bi-person-circle me-1 text-primary"></i> {{ u.full_name }}
-                </h6>
-                {% if u.is_active %}
-                  <span class="badge bg-success-subtle border rounded-pill">Ativo</span>
-                {% else %}
-                  <span class="badge bg-danger-subtle border rounded-pill">Inativo</span>
-                {% endif %}
-              </div>
-
-              <p class="text-secondary small mb-2">{{ u.email }}</p>
-
-              <div class="d-flex justify-content-between align-items-center border-top pt-2 mt-2 mb-3 small">
-                <span class="badge bg-info-subtle border px-2 py-1">
-                  <i class="bi bi-hdd-network me-1"></i> {{ u.assigned_proxies | length }} Proxies
-                </span>
-                <span class="badge bg-primary-subtle text-primary border px-2 py-1">
-                  <i class="bi bi-controller me-1"></i> {{ u.lobbies | length }} Lobbies
-                </span>
-              </div>
-
-              <form action="{{ url_for('main.toggle_user_status', user_id=u.id) }}" method="POST">
-                {% if u.is_active %}
-                  <button type="submit" class="btn btn-sm btn-outline-danger w-100 rounded-3">
-                    <i class="bi bi-person-x-fill me-1"></i> Desativar Usuário
-                  </button>
-                {% else %}
-                  <button type="submit" class="btn btn-sm btn-outline-success w-100 rounded-3">
-                    <i class="bi bi-person-check-fill me-1"></i> Ativar Usuário
-                  </button>
-                {% endif %}
-              </form>
-            </div>
-          </div>
-          {% endif %}
-          {% endfor %}
-        </div>
-
         {% else %}
         <div class="card shadow-sm border-0 py-5 text-center bg-body-tertiary">
-          <div class="card-body">
-            <i class="bi bi-people fs-1 text-secondary opacity-50 mb-3 d-block"></i>
-            <h5 class="fw-bold mb-1">Nenhum usuário cadastrado</h5>
-          </div>
+          <h5 class="fw-bold mb-1">Nenhum outro usuário cadastrado</h5>
         </div>
         {% endif %}
       </div>
-    </div> <!-- FIM DA ABA USUÁRIOS -->
+    </div>
 
   </main>
 </div>
@@ -426,38 +204,22 @@
 
 {% block extra_js %}
 <script>
-  // --------------------------------------------------------------------------
-  // 1. GERENCIADOR DE ABAS CUSTOMIZADO (LÓGICA DIRETA VIA JS)
-  // --------------------------------------------------------------------------
   function switchTab(targetPaneId, clickedBtn) {
-    document.querySelectorAll('.tab-pane-custom').forEach(pane => {
-      pane.classList.add('d-none');
-    });
-
-    const targetPane = document.getElementById(targetPaneId);
-    if (targetPane) {
-      targetPane.classList.remove('d-none');
-    }
-
+    document.querySelectorAll('.tab-pane-custom').forEach(pane => pane.classList.add('d-none'));
+    document.getElementById(targetPaneId).classList.remove('d-none');
     document.querySelectorAll('.tab-btn').forEach(btn => {
       btn.classList.remove('btn-primary', 'active');
       btn.classList.add('btn-outline-secondary');
     });
-
     clickedBtn.classList.remove('btn-outline-secondary');
     clickedBtn.classList.add('btn-primary', 'active');
   }
 
-  // --------------------------------------------------------------------------
-  // 2. ALTERNADOR DE TEMA CLARO / ESCURO (LIGHT / DARK MODE)
-  // --------------------------------------------------------------------------
   const themeToggleBtn = document.getElementById('themeToggleBtn');
   const themeToggleIcon = document.getElementById('themeToggleIcon');
-
   function applyTheme(theme) {
     document.documentElement.setAttribute('data-bs-theme', theme);
     document.body.setAttribute('data-bs-theme', theme);
-
     if (theme === 'dark') {
       themeToggleIcon.classList.remove('bi-moon-stars-fill');
       themeToggleIcon.classList.add('bi-sun-fill', 'text-warning');
@@ -467,72 +229,11 @@
     }
     localStorage.setItem('theme', theme);
   }
-
-  const savedTheme = localStorage.getItem('theme') || (window.matchMedia('(prefers-color-scheme: dark)').matches ? 'dark' : 'light');
-  applyTheme(savedTheme);
-
+  applyTheme(localStorage.getItem('theme') || 'light');
   if (themeToggleBtn) {
     themeToggleBtn.addEventListener('click', () => {
-      const currentTheme = document.documentElement.getAttribute('data-bs-theme');
-      const newTheme = currentTheme === 'dark' ? 'light' : 'dark';
-      applyTheme(newTheme);
+      applyTheme(document.documentElement.getAttribute('data-bs-theme') === 'dark' ? 'light' : 'dark');
     });
   }
-
-  // --------------------------------------------------------------------------
-  // 3. VISIBILIDADE DE SENHAS
-  // --------------------------------------------------------------------------
-  function togglePassword(inputId, iconId) {
-    const pwdInput = document.getElementById(inputId);
-    const icon = document.getElementById(iconId);
-
-    if (pwdInput.type === 'password') {
-      pwdInput.type = 'text';
-      icon.classList.remove('bi-eye-slash-fill');
-      icon.classList.add('bi-eye-fill', 'text-primary');
-    } else {
-      pwdInput.type = 'password';
-      icon.classList.remove('bi-eye-fill', 'text-primary');
-      icon.classList.add('bi-eye-slash-fill');
-    }
-  }
-
-  // --------------------------------------------------------------------------
-  // 4. FILTRO DINÂMICO DE PROXIES
-  // --------------------------------------------------------------------------
-  function filterProxies(type, btnElement) {
-    document.querySelectorAll('#proxies-pane .btn-outline-primary, #proxies-pane .btn-outline-success, #proxies-pane .btn-outline-danger, #proxies-pane .btn-outline-info, #proxies-pane .btn-outline-warning').forEach(btn => btn.classList.remove('active'));
-    btnElement.classList.add('active');
-
-    const rows = document.querySelectorAll('.proxy-row');
-    rows.forEach(row => {
-      const status = row.getAttribute('data-status');
-      const assigned = row.getAttribute('data-assigned');
-
-      if (type === 'all') {
-        row.style.display = '';
-      } else if (type === 'active' && status === 'active') {
-        row.style.display = '';
-      } else if (type === 'inactive' && status === 'inactive') {
-        row.style.display = '';
-      } else if (type === 'available' && assigned === 'available') {
-        row.style.display = '';
-      } else if (type === 'unavailable' && assigned === 'unavailable') {
-        row.style.display = '';
-      } else {
-        row.style.display = 'none';
-      }
-    });
-  }
-
-  // Animação manual ao clicar no botão de sincronização
-  document.getElementById('syncForm')?.addEventListener('submit', function() {
-    const btn = document.getElementById('btnSync');
-    const icon = document.getElementById('iconSync');
-    if (btn && icon) {
-      btn.classList.add('disabled');
-      icon.classList.add('spin-animation');
-    }
-  });
 </script>
 {% endblock %}

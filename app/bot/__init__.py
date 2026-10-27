@@ -1,3 +1,8 @@
+# app/bot/__init__.py
+
 from app.bot.runner import BotManager
 
-__all__ = ['BotManager']
+__all__ = [
+    'BotManager'
+]
+

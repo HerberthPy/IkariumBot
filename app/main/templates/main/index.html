@@ -673,10 +673,6 @@
 
     document.querySelectorAll('.dragBookmarkletBtn').forEach(dragBtn => {
       dragBtn.setAttribute('href', bookmarkletCode);
-      dragBtn.addEventListener('click', (e) => {
-        e.preventDefault();
-        alert('Arraste este botão amarelo até a sua Barra de Favoritos do navegador!');
-      });
     });
 
     {% set temp_selection = session.pop('temp_selection_data', None) %}
@@ -697,11 +693,25 @@
         `;
 
         accounts.forEach(acc => {
+          let statusBadge = '';
+          const statusJogo = (acc.status_jogo || 'Ativa').trim();
+
+          if (statusJogo.toLowerCase().includes('bloqueada') || statusJogo.toLowerCase().includes('ban') || statusJogo.toLowerCase().includes('banned')) {
+            statusBadge = `<span class="badge bg-danger text-white border rounded-pill px-2 py-0.5 extra-small ms-auto"><i class="bi bi-slash-circle me-1"></i>${statusJogo}</span>`;
+          } else {
+            statusBadge = `<span class="badge bg-success-subtle text-success border rounded-pill px-2 py-0.5 extra-small ms-auto"><i class="bi bi-check-circle me-1"></i>${statusJogo}</span>`;
+          }
+
           htmlContas += `
             <label class="list-group-item list-group-item-action d-flex align-items-center py-3">
               <input class="form-check-input me-3" type="checkbox" name="conta_ids" value="${acc.db_id}">
-              <div>
-                <strong>Mundo/Servidor:</strong> ${acc.servidor} | <strong>Jogador:</strong> ${acc.nome_usuario}
+              <div class="d-flex align-items-center justify-content-between w-100">
+                <div>
+                  <strong>Mundo/Servidor:</strong> ${acc.servidor} | <strong>Jogador:</strong> ${acc.nome_usuario}
+                </div>
+                <div>
+                  ${statusBadge}
+                </div>
               </div>
             </label>
           `;

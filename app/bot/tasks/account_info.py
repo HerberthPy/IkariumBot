@@ -1,7 +1,11 @@
 # app/bot/tasks/account_info.py
+import asyncio
 import re
 
-from app.bot.utils.human import HumanBehavior
+from app.bot.utils import HumanBehavior, UICleaner, BotLogger
+
+logger = BotLogger.get_logger()
+
 
 class AccountInfoTask:
 
@@ -13,12 +17,13 @@ class AccountInfoTask:
         return int(cleaned) if cleaned else 0
 
     @classmethod
-    def _get_resource_value(cls, game_page, selectors) -> int:
+    async def _get_resource_value(cls, game_page, selectors) -> int:
         for selector in selectors:
             try:
                 loc = game_page.locator(selector)
-                if loc.is_visible(timeout=2000):
-                    text = loc.inner_text()
+                if await loc.is_visible(timeout=2000):
+                    text = await loc.inner_text()
+                    # ATENÇÃO: _clean_number é síncrono, portanto NÃO leva await
                     val = cls._clean_number(text)
                     if val >= 0:
                         return val
@@ -27,51 +32,74 @@ class AccountInfoTask:
         return 0
 
     @classmethod
-    def run(cls, conta_id: int, game_page, check_running_callback=None):
-        print(f"[Account Info] Coletando informações completas para a conta ID {conta_id}...")
+    async def run_async(cls, conta_id: int, game_page):
+        logger.info(f"[Account Info] Coletando informações completas para a conta ID {conta_id}...")
 
         try:
-            game_page.wait_for_selector("#topnavi", timeout=20000)
-            HumanBehavior.random_sleep(2.0, 3.5)
+            await game_page.wait_for_selector("#topnavi", timeout=20000)
+            await HumanBehavior.random_sleep(2.0, 3.5)
 
             # =========================================================================
-            # LIMPEZA INICIAL: FECHAR POP-UPS DE ANÚNCIO E COOKIES
+            # LIMPEZA INICIAL: TRATADO DE FORMA SEGURA
             # =========================================================================
             try:
-                print("[Game Cleaner] Verificando pop-ups, anúncios e banner de cookies...")
-
-                # Loop para fechar quantas janelas/anúncios/conquistas aparecerem na tela
-                for _ in range(3):  # Tenta até 3 vezes caso haja mais de uma sobreposição
-                    close_btn = game_page.locator(
-                        "button:has-text('Close'), a:has-text('Close'), button:has-text('Fechar'), a:has-text('Fechar'), div.ui-dialog button:has-text('OK'), button.button:has-text('OK'), .closeBtn, .ui-dialog-titlebar-close"
-                    ).first
-
-                    if close_btn.is_visible(timeout=1000):
-                        close_btn.click()
-                        print("[Game Cleaner] Pop-up / Conquista fechada com sucesso.")
-                        HumanBehavior.random_sleep(0.4, 0.7)
-                    else:
-                        break  # Se não houver mais nenhum botão de fechar visível, sai do loop
-
-                # Tenta aceitar/fechar o banner de cookies se ele estiver presente
-                cookie_btn = game_page.locator(
-                    "button:has-text('Aceitar Cookies'), button:has-text('Accept Cookies'), #cookie-consent button, button[id*='cookie']"
-                ).first
-                if cookie_btn.is_visible(timeout=1500):
-                    cookie_btn.click()
-                    print("[Game Cleaner] Banner de cookies aceito/fechado com sucesso.")
-                    HumanBehavior.random_sleep(0.4, 0.8)
-
+                logger.info("[Game Cleaner] Verificando pop-ups, anúncios e banner de cookies...")
+                # Se o UICleaner for síncrono, chamamos sem await para evitar NoneType
+                if asyncio.iscoroutinefunction(UICleaner.dismiss_popups_and_banners):
+                    await UICleaner.dismiss_popups_and_banners(game_page)
+                else:
+                    UICleaner.dismiss_popups_and_banners(game_page)
             except Exception as e:
-                print(f"[Game Cleaner AVISO] Erro ao tentar limpar elementos da tela: {e}")
+                logger.warning(f"[Game Cleaner AVISO] Erro ao tentar limpar elementos da tela: {e}")
 
-            # Captura o texto dos elementos diretamente pelos IDs exatos
-            barcos_livres = int(game_page.locator("#js_GlobalMenu_freeTransporters").inner_text().strip())
-            barcos_totais = int(game_page.locator("#js_GlobalMenu_maxTransporters").inner_text().strip())
+            # 1 - Captura os barcos disponíveis, totais, cargueiros e ouro.
+            barcos_livres_text = await game_page.locator("#js_GlobalMenu_freeTransporters").inner_text()
+            barcos_totais_text = await game_page.locator("#js_GlobalMenu_maxTransporters").inner_text()
+            cargueiros_livres_text = await game_page.locator("#js_GlobalMenu_freeFreighters").inner_text()
+            cargueiros_totais_text = await game_page.locator("#js_GlobalMenu_maxFreighters").inner_text()
 
-            # Formato string se precisar
+            barcos_livres = cls._clean_number(barcos_livres_text)
+            barcos_totais = cls._clean_number(barcos_totais_text)
+            cargueiros_livres = cls._clean_number(cargueiros_livres_text)
+            cargueiros_totais = cls._clean_number(cargueiros_totais_text)
+
             transporters_text = f"{barcos_livres} ({barcos_totais})"
-            print(transporters_text)
+            cargueiros_text = f"{cargueiros_livres} ({cargueiros_totais})"
+            logger.info(f"Barcos de transporte: {transporters_text}")
+            logger.info(f"Cargueiros: {cargueiros_text}")
+
+            # COLETA DO OURO E RENDIMENTO
+            exact_gold = "0"
+            rendimento_exato = "+0/h"
+            await HumanBehavior.human_click(game_page, "#js_GlobalMenu_gold")
+            await HumanBehavior.random_sleep(3.5, 5.0)
+
+            try:
+                exact_gold = (await game_page.locator("td.nowrap.res div.tooltip").first.inner_text(timeout=3000)).strip()
+                logger.info(f"Ouro total exato: {exact_gold.strip()}")
+            except Exception as e:
+                logger.warning(f"Não foi possível capturar o ouro total: {e}")
+
+            try:
+                rendimento_exato = (await game_page.locator("tr.result td.nowrap div.tooltip").nth(7).inner_text(
+                    timeout=3000)).strip()
+                logger.info(f"Rendimento exato: {rendimento_exato.strip()}")
+            except Exception as e:
+                logger.warning(f"Não foi possível capturar o rendimento exato: {e}")
+
+            # Fecha o modal pressionando Escape ou clicando no botão de fechar
+            try:
+                close_btn = game_page.locator(".dynamic_popup .close, .dialog .close, [title*='Fechar']").first
+                if await close_btn.is_visible(timeout=1000):
+                    await close_btn.click()
+                else:
+                    await game_page.keyboard.press("Escape")
+                await HumanBehavior.random_sleep(0.5, 0.8)
+            except Exception:
+                await game_page.keyboard.press("Escape")
+
+            ouro_limpo = str(cls._clean_number(exact_gold))
+            rendimento_limpo = str(cls._clean_number(rendimento_exato))
 
             # 2. Mapeamento e Varredura de Cidades
             drop_btn_selector = "#js_citySelectContainer .dropDownButton"
@@ -79,21 +107,30 @@ class AccountInfoTask:
             cidades_data = []
 
             try:
-                if game_page.locator(drop_btn_selector).is_visible(timeout=4000):
-                    HumanBehavior.human_click(game_page, drop_btn_selector)
-                    HumanBehavior.random_sleep(1.0, 1.5)
+                if await game_page.locator(drop_btn_selector).is_visible(timeout=4000):
+                    await HumanBehavior.human_click(game_page, drop_btn_selector)
+                    await HumanBehavior.random_sleep(1.0, 1.5)
 
-                    cidades_data = game_page.evaluate("""
+                    cidades_data = await game_page.evaluate("""
                         () => {
                             let list = [];
                             let items = document.querySelectorAll("li.ownCity, #dropDown_js_citySelectContainer li.ownCity");
                             items.forEach((li) => {
                                 let selectVal = li.getAttribute("selectvalue");
                                 let aTag = li.querySelector("a");
-                                let name = aTag ? aTag.innerText.trim() : li.innerText.trim();
-                                if (selectVal && name) {
-                                    name = name.split("\\n")[0].trim();
-                                    list.push({ id: selectVal, name: name });
+                                let rawText = aTag ? aTag.innerText : li.innerText;
+
+                                if (selectVal && rawText) {
+                                    let name = rawText.split("\\n")[0].trim();
+                                    let coordMatch = rawText.match(/\\[(\\d+):(\\d+)\\]/);
+                                    let coords = coordMatch ? { x: coordMatch[1], y: coordMatch[2] } : null;
+
+                                    list.push({ 
+                                        id: selectVal, 
+                                        name: name,
+                                        raw_text: rawText,
+                                        coords: coords
+                                    });
                                 }
                             });
                             return list;
@@ -101,44 +138,41 @@ class AccountInfoTask:
                     """)
 
                     try:
-                        game_page.keyboard.press("Escape")
-                        HumanBehavior.random_sleep(0.4, 0.7)
+                        await game_page.keyboard.press("Escape")
+                        await HumanBehavior.random_sleep(0.4, 0.7)
                     except Exception:
                         pass
             except Exception as err:
-                print(f"[Account Info AVISO] Falha ao listar cidades via dropdown: {err}")
+                logger.warning(f"[Account Info AVISO] Falha ao listar cidades via dropdown: {err}")
 
             if cidades_data:
-                print(f"[Account Info] Cidades válidas mapeadas com sucesso: {len(cidades_data)}")
+                logger.info(f"[Account Info] Cidades válidas mapeadas com sucesso: {len(cidades_data)}")
 
                 for idx, city in enumerate(cidades_data):
-                    if check_running_callback and not check_running_callback():
-                        break
-
                     city_id = city["id"]
                     city_name = city["name"]
 
-                    print(
+                    logger.info(
                         f"[Account Info] Acessando cidade [{idx + 1}/{len(cidades_data)}]: {city_name} (ID: {city_id})...")
 
                     try:
-                        game_page.goto(f"https://{game_page.url.split('/')[2]}/index.php?view=city&cityId={city_id}",
+                        await game_page.goto(f"https://{game_page.url.split('/')[2]}/index.php?view=city&cityId={city_id}",
                                        timeout=30000, wait_until="domcontentloaded")
-                        HumanBehavior.random_sleep(3.5, 5.0)
+                        await HumanBehavior.random_sleep(3.5, 5.0)
                     except Exception as nav_err:
-                        print(f"[Account Info AVISO] Falha ao navegar diretamente para a cidade {city_name}: {nav_err}")
+                        logger.warning(f"[Account Info AVISO] Falha ao navegar diretamente para a cidade {city_name}: {nav_err}")
                         continue
 
-                    wood = cls._get_resource_value(game_page, ["#js_GlobalMenu_wood"])
-                    wine = cls._get_resource_value(game_page, ["#js_GlobalMenu_wine"])
-                    marble = cls._get_resource_value(game_page, ["#js_GlobalMenu_marble"])
-                    glass = cls._get_resource_value(game_page, ["#js_GlobalMenu_glass", "#js_GlobalMenu_crystal"])
-                    sulfur = cls._get_resource_value(game_page, ["#js_GlobalMenu_sulfur"])
+                    wood = await cls._get_resource_value(game_page, ["#js_GlobalMenu_wood"])
+                    wine = await cls._get_resource_value(game_page, ["#js_GlobalMenu_wine"])
+                    marble = await cls._get_resource_value(game_page, ["#js_GlobalMenu_marble"])
+                    glass = await cls._get_resource_value(game_page, ["#js_GlobalMenu_glass", "#js_GlobalMenu_crystal"])
+                    sulfur = await cls._get_resource_value(game_page, ["#js_GlobalMenu_sulfur"])
 
                     c_livres = "0"
                     c_totais = "0"
                     try:
-                        pop_metrics = game_page.evaluate(r"""() => {
+                        pop_metrics = await game_page.evaluate(r"""() => {
                             const citEl = document.querySelector('#js_GlobalMenu_citizens');
                             const popEl = document.querySelector('#js_GlobalMenu_population');
 
@@ -157,6 +191,7 @@ class AccountInfoTask:
                     cidades_info.append({
                         "id": f"cidade_{idx + 1}",
                         "nome": city_name,
+                        "coords": city.get("coords"),
                         "cidadaos_livres": c_livres,
                         "cidadaos_totais": c_totais,
                         "recursos": {
@@ -168,42 +203,7 @@ class AccountInfoTask:
                         }
                     })
             else:
-                print("Recursos não coletados.")
-
-            # 3. COLETA DO OURO E RENDIMENTO POR ÚLTIMO
-
-            # Aguarda o modal carregar completamente
-            HumanBehavior.random_sleep(3.0, 4.5)
-            exact_gold = "0"
-            rendimento_exato = "+0/h"
-            HumanBehavior.human_click(game_page, "#js_GlobalMenu_gold")
-            try:
-                # 1. Captura o ouro total exato na célula de recursos
-                exact_gold = game_page.locator("td.nowrap.res div.tooltip").first.inner_text(timeout=3000).strip()
-                print(f"Ouro total exato: {exact_gold.strip()}")
-            except Exception as e:
-                print(f"Não foi possível capturar o ouro total: {e}")
-
-            try:
-                # 2. Captura o rendimento exato na linha de resultado (tr.result)
-                rendimento_exato = game_page.locator("tr.result td.nowrap div.tooltip").nth(7).inner_text(timeout=3000).strip()
-                print(f"Rendimento exato: {rendimento_exato.strip()}")
-            except Exception as e:
-                print(f"Não foi possível capturar o rendimento exato: {e}")
-
-            # Fecha o modal pressionando Escape ou clicando no botão de fechar
-            try:
-                close_btn = game_page.locator(".dynamic_popup .close, .dialog .close, [title*='Fechar']").first
-                if close_btn.is_visible(timeout=1000):
-                    close_btn.click()
-                else:
-                    game_page.keyboard.press("Escape")
-                HumanBehavior.random_sleep(0.5, 0.8)
-            except:
-                game_page.keyboard.press("Escape")
-
-            ouro_limpo = str(cls._clean_number(exact_gold))
-            rendimento_limpo = str(cls._clean_number(rendimento_exato))
+                logger.info("Recursos não coletados.")
 
             info = {
                 "qtd_cidades": len(cidades_info),
@@ -212,14 +212,16 @@ class AccountInfoTask:
                 "barcos_disponiveis": barcos_livres,
                 "barcos_totais": barcos_totais,
                 "barcos_transporte": transporters_text.strip(),
+                "cargueiros_disponiveis": cargueiros_livres,
+                "cargueiros_totais": cargueiros_totais,
                 "cidades": cidades_info
             }
 
-            HumanBehavior.random_sleep(4.0, 6.0)
-            print(
+            await HumanBehavior.random_sleep(4.0, 6.0)
+            logger.info(
                 f"[Account Info SUCESSO] Extração concluída | Ouro: {info['ouro']} ({info['ouro_rendimento']}) | Barcos: {barcos_livres}/{barcos_totais}")
             return info
 
         except Exception as e:
-            print(f"[Account Info ERRO] {e}")
+            logger.error(f"[Account Info ERRO] {e}")
             return None

@@ -1,115 +1,273 @@
-# app/bot/runner.py
-
-import threading
-import time
-from playwright.sync_api import sync_playwright
+import re
+import asyncio
+import subprocess
+import sys
 from app import db
-from app.models import Lobby
+from app.models import Lobby, Conta, get_brasilia_time
 from app.bot.auth import AuthManager
-from app.bot.network import NetworkInterceptor
 from app.bot.tasks.accounts_scraper import AccountsScraperTask
-from app.bot.tasks.server_login import ServerLoginTask
+from app.bot.tasks.account_info import AccountInfoTask
+from app.bot.utils import UICleaner, BotLogger
+
+logger = BotLogger.get_logger()
 
 
 class BotManager:
-    _instances = {}
-    _lock = threading.Lock()
-
-    @classmethod
-    def start_lobby(cls, lobby_id, app):
-        with cls._lock:
-            if lobby_id in cls._instances:
-                return
-            stop_event = threading.Event()
-            cls._instances[lobby_id] = {"stop_event": stop_event}
-
-        thread = threading.Thread(target=cls._run_browser, args=(lobby_id, app, stop_event))
-        thread.daemon = True
-        thread.start()
-
-    @classmethod
-    def _run_browser(cls, lobby_id, app, stop_event):
-        with app.app_context():
-            lobby = db.session.get(Lobby, lobby_id)
-            if not lobby or not lobby.proxy:
-                print(f"[BotManager] Lobby #{lobby_id} sem proxy ou não encontrado.")
-                with cls._lock:
-                    cls._instances.pop(lobby_id, None)
-                return
-
-            proxy_info = lobby.proxy
-
-            # Formatação segura da proxy para o Playwright
-            proxy_config = {"server": f"http://{proxy_info.address}:{proxy_info.port}"}
-            if proxy_info.username and proxy_info.get_password():
-                proxy_config["username"] = proxy_info.username
-                proxy_config["password"] = proxy_info.get_password()
-
-            p = None
-            browser = None
-
-            try:
-                p = sync_playwright().start()
-                # headless=True para rodar em segundo plano sem abrir janelas indesejadas
-                browser = p.chromium.launch(headless=False)
-
-                # 1. Autenticação e aplicação da proxy no contexto do browser
-                context, page = AuthManager.get_authenticated_context(browser, lobby, proxy_config)
-
-                # Marca no banco que o lobby possui uma sessão ativa válida
-                lobby.has_session = True
-                db.session.commit()
-
-                print(f"[BotManager] Lobby '{lobby.nickname}' rodando tarefas ativas...")
-
-                # Loop contínuo de vida útil da instância Playwright
-                while not stop_event.is_set():
-                    lobby_atualizado = db.session.get(Lobby, lobby_id)
-
-                    if not lobby_atualizado or lobby_atualizado.status != 'ATIVO':
-                        print(f"[BotManager] Lobby '{lobby.nickname}' inativado pelo usuário. Encerrando automação...")
-                        break
-
-                    captured_accounts = []
-                    NetworkInterceptor.listen_accounts_api(page, captured_accounts)
-
-                    AccountsScraperTask.run(lobby_atualizado, page, captured_accounts)
-                    ServerLoginTask.run(lobby_atualizado, page)
-
-                    time.sleep(5.0)
-
-            except Exception as e:
-                print(f"[BotManager ERRO] Falha no Lobby #{lobby_id}: {e}")
-
-                lobby_atual = db.session.get(Lobby, lobby_id)
-                if lobby_atual:
-                    lobby_atual.has_session = lobby_atual.is_session_valid
-                    lobby_atual.status = 'INATIVO'  # Marca como inativo se der erro de conexão/proxy
-                    db.session.commit()
-
-            finally:
-                print(f"[BotManager] Encerrando instância do Lobby #{lobby_id}...")
-                try:
-                    if browser:
-                        browser.close()
-                    if p:
-                        p.stop()
-                except Exception:
-                    pass
-
-                with cls._lock:
-                    cls._instances.pop(lobby_id, None)
-
-    @classmethod
-    def stop_lobby(cls, lobby_id):
-        with cls._lock:
-            instance = cls._instances.get(lobby_id)
-        if instance and "stop_event" in instance:
-            instance["stop_event"].set()
-            with cls._lock:
-                cls._instances.pop(lobby_id, None)
+    _ativas = set()
 
     @classmethod
     def is_running(cls, lobby_id):
-        with cls._lock:
-            return lobby_id in cls._instances
+        return lobby_id in cls._ativas
+
+    @classmethod
+    def start_lobby(cls, lobby_id, app):
+        if cls.is_running(lobby_id):
+            return
+        cls._rodar_em_subprocesso(lobby_id)
+
+    @classmethod
+    def _rodar_em_subprocesso(cls, lobby_id):
+        try:
+            cls._ativas.add(lobby_id)
+            script_isolado = f"""
+import sys
+import os
+from pathlib import Path
+sys.path.append(str(Path(__file__).resolve().parent.parent.parent))
+
+from app import create_app
+from app.bot.runner import BotManager
+
+app = create_app()
+with app.app_context():
+    BotManager.run_lobby_cycle_direto({lobby_id}, app)
+"""
+            subprocess.Popen([sys.executable, "-c", script_isolado])
+        except Exception as e:
+            logger.error(f"[BotManager] Erro ao iniciar subprocesso para o lobby #{lobby_id}: {e}")
+            cls._ativas.discard(lobby_id)
+
+    @classmethod
+    def run_lobby_cycle(cls, lobby_id, app):
+        cls.run_lobby_cycle_direto(lobby_id, app)
+
+    @classmethod
+    def run_lobby_cycle_direto(cls, lobby_id, app):
+        cls._ativas.add(lobby_id)
+        try:
+            with app.app_context():
+                lobby = db.session.get(Lobby, lobby_id)
+                if not lobby:
+                    return
+                nickname = lobby.nickname
+
+            logger.info(f"[BotRunner] A iniciar execução para o Lobby '{nickname}'...")
+            asyncio.run(cls._run_async_cycle(lobby_id, app, nickname))
+
+        except Exception as e:
+            logger.error(f"[BotRunner ERRO] Falha ao executar o ciclo do lobby #{lobby_id}: {e}")
+        finally:
+            cls._ativas.discard(lobby_id)
+
+    @classmethod
+    async def _run_async_cycle(cls, lobby_id, app, nickname):
+        from playwright.async_api import async_playwright
+
+        async with async_playwright() as p:
+            browser = await p.chromium.launch(headless=False, args=["--start-maximized"])
+            try:
+                with app.app_context():
+                    lobby_db = db.session.get(Lobby, lobby_id)
+
+                    # 1. Autentica e abre o navegador no Lobby
+                    context, page = await AuthManager.get_authenticated_context(browser, lobby_db)
+                    lobby_db.has_session = True
+                    db.session.commit()
+
+                    logger.info(f"[BotRunner] Conectado com sucesso ao Lobby '{lobby_db.nickname}'.")
+
+                    # 2. Executa o scraper utilizando a mesma página aberta
+                    await AccountsScraperTask.run_async_for_lobby(lobby_db, page)
+
+                    # 3. Executa o pipeline de módulos para as contas ativas
+                    await cls._executar_pipeline(context, page, lobby_db, app)
+
+            finally:
+                await browser.close()
+                logger.info(f"[BotRunner] Navegador fechado para o Lobby '{nickname}'.")
+
+    @classmethod
+    async def _executar_pipeline(cls, context, lobby_page, lobby, app):
+        with app.app_context():
+            contas_ativas = [c for c in lobby.contas if c.ativo and c.automacao_ativa]
+
+        if not contas_ativas:
+            return
+
+        for conta_ref in contas_ativas:
+            with app.app_context():
+                conta = db.session.get(Conta, conta_ref.id)
+                if not conta or not conta.automacao_ativa:
+                    continue
+                nome_u = conta.nome_usuario
+                serv = conta.servidor
+                conta_id = conta.id
+                modulos_habilitados = [cm.modulo.nome_tecnico for cm in conta.modulos_habilitados if cm.ativo]
+
+            logger.info(f"[Pipeline] A processar conta: {nome_u} ({serv})")
+            game_page = None
+
+            try:
+                game_page = await cls._entrar_na_conta(context, lobby_page, conta_ref)
+                if not game_page:
+                    logger.error(f"[Pipeline ERRO] Não foi possível abrir a conta {nome_u}.")
+                    continue
+
+                with app.app_context():
+                    c_up = db.session.get(Conta, conta_id)
+                    c_up.ultimo_login = get_brasilia_time()
+                    c_up.ultima_sincronizacao = get_brasilia_time()
+                    db.session.commit()
+
+                    # MÓDULO 1: Coleta de Informações (Ativo)
+                    if 'coleta_info' in modulos_habilitados:
+                        logger.info(f" -> A executar Módulo: Coleta de Informações...")
+                        dados_coletados = await AccountInfoTask.run_async(conta_id, game_page)
+
+                        if dados_coletados:
+                            with app.app_context():
+                                try:
+                                    conta_db = db.session.get(Conta, conta_id)
+                                    if conta_db:
+                                        # 1. Atualiza os campos principais da conta
+                                        conta_db.ouro = str(dados_coletados.get("ouro", "0"))
+                                        conta_db.ouro_rendimento = str(dados_coletados.get("ouro_rendimento", "+0/h"))
+                                        conta_db.barcos_disponiveis = int(dados_coletados.get("barcos_disponiveis", 0))
+                                        conta_db.barcos_totais = int(dados_coletados.get("barcos_totais", 0))
+
+                                        # Tratativa para nomes de colunas de cargueiros
+                                        if hasattr(conta_db, 'cargueiro_disponiveis'):
+                                            conta_db.cargueiro_disponiveis = int(
+                                                dados_coletados.get("cargueiros_disponiveis", 0))
+                                        if hasattr(conta_db, 'cargueiro_totais'):
+                                            conta_db.cargueiro_totais = int(dados_coletados.get("cargueiros_totais", 0))
+
+                                        conta_db.ultima_sincronizacao = get_brasilia_time()
+
+                                        # 2. Processa e salva as cidades recolhidas
+                                        from app.models import Cidade, Ilha
+                                        cidades_capturadas = dados_coletados.get("cidades", [])
+
+                                        for c_data in cidades_capturadas:
+                                            nome_cidade = c_data.get("nome")
+                                            coords = c_data.get("coords")  # Ex: {'x': '...', 'y': '...'}
+                                            recursos = c_data.get("recursos", {})
+
+                                            def parse_res(val_str):
+                                                if not val_str: return 0.0
+                                                return float(str(val_str).replace(".", "").replace(",", "."))
+
+                                            # Garante a ilha
+                                            ilha_id_alvo = None
+                                            if coords:
+                                                x_val, y_val = int(coords.get("x", 0)), int(coords.get("y", 0))
+                                                ilha_obj = Ilha.query.filter_by(x=x_val, y=y_val).first()
+                                                if not ilha_obj:
+                                                    ilha_obj = Ilha(x=x_val, y=y_val, nome=f"Ilha [{x_val}:{y_val}]")
+                                                    db.session.add(ilha_obj)
+                                                    db.session.flush()
+                                                ilha_id_alvo = ilha_obj.id
+
+                                            if not ilha_id_alvo:
+                                                # Fallback caso não venham coordenadas da cidade
+                                                ilha_padrao = Ilha.query.first()
+                                                if ilha_padrao:
+                                                    ilha_id_alvo = ilha_padrao.id
+                                                else:
+                                                    continue
+
+                                            # Procura ou cria a cidade
+                                            cidade_obj = Cidade.query.filter_by(conta_id=conta_id,
+                                                                                nome=nome_cidade).first()
+                                            if not cidade_obj:
+                                                cidade_obj = Cidade(
+                                                    conta_id=conta_id,
+                                                    ilha_id=ilha_id_alvo,
+                                                    nome=nome_cidade
+                                                )
+                                                db.session.add(cidade_obj)
+
+                                            cidade_obj.populacao_livre = int(
+                                                str(c_data.get("cidadaos_livres", "0")).replace(".", ""))
+                                            cidade_obj.populacao_atual = int(
+                                                str(c_data.get("cidadaos_totais", "0")).replace(".", ""))
+
+                                            cidade_obj.madeira = parse_res(recursos.get("madeira", 0))
+                                            cidade_obj.vinho = parse_res(recursos.get("vinho", 0))
+                                            cidade_obj.marmore = parse_res(recursos.get("marmore", 0))
+                                            cidade_obj.cristal = parse_res(recursos.get("cristal", 0))
+                                            cidade_obj.enxofre = parse_res(recursos.get("enxofre", 0))
+
+                                        db.session.commit()
+                                        logger.info(
+                                            f"[Pipeline SUCESSO] Conta e {len(cidades_capturadas)} cidade(s) comitadas no BD com sucesso!")
+                                except Exception as db_err:
+                                    db.session.rollback()
+                                    logger.error(f"[Pipeline ERRO BD] Falha ao persistir dados da conta: {db_err}")
+                    else:
+                        logger.info(f" -> Módulo 'coleta_info' desativado para esta conta.")
+
+            except Exception as err:
+                logger.error(f"[Pipeline ERRO] Erro na conta {nome_u}: {err}")
+            finally:
+                if game_page:
+                    try:
+                        if not game_page.is_closed():
+                            await game_page.close()
+                    except:
+                        pass
+
+    @classmethod
+    async def _entrar_na_conta(cls, context, lobby_page, conta):
+        try:
+            await lobby_page.goto("https://lobby.ikariam.gameforge.com/pt_BR/accounts", timeout=30000,
+                                  wait_until="domcontentloaded")
+            await UICleaner.dismiss_popups_and_banners(lobby_page)
+            await lobby_page.wait_for_selector("div.rt-tr-group", timeout=10000)
+            await lobby_page.wait_for_timeout(1500)
+
+            play_button = None
+            target_user = str(conta.nome_usuario).strip().lower()
+            target_server = str(conta.servidor).strip().lower()
+
+            rows = await lobby_page.locator("div.rt-tr-group").all()
+            for row in rows:
+                try:
+                    server_elem = (await row.locator("div.server-name-cell").inner_text()).strip().lower()
+                    player_elem = (await row.locator("div.player-cell").inner_text()).strip().lower()
+
+                    if target_server in server_elem and target_user in player_elem:
+                        btn = row.locator("div.action-cell button, div.action-cell a").filter(
+                            has_text=re.compile("Jogar|Play", re.IGNORECASE)).first
+                        if await btn.is_visible(timeout=500):
+                            play_button = btn
+                            break
+                except:
+                    continue
+
+            if not play_button or not (await play_button.is_visible(timeout=4000)):
+                return None
+
+            async with context.expect_page(timeout=20000) as new_page_info:
+                await play_button.click()
+
+            game_page = await new_page_info.value
+            await game_page.wait_for_url(
+                lambda url: "ikariam.gameforge.com" in url and ("view=" in url or "s" in url),
+                timeout=25000
+            )
+            return game_page
+
+        except Exception as e:
+            logger.error(f"[Login ERRO] Falha ao abrir conta: {e}")
+            return None
