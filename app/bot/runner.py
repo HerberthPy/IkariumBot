@@ -154,32 +154,43 @@ with app.app_context():
 
                                         conta_db.ultima_sincronizacao = get_brasilia_time()
 
-                                        # 2. Processa e salva as cidades recolhidas
+                                        # 2. Processa e salva as cidades recolhidas com os campos corretos da Ilha
                                         from app.models import Cidade, Ilha
                                         cidades_capturadas = dados_coletados.get("cidades", [])
 
                                         for c_data in cidades_capturadas:
                                             nome_cidade = c_data.get("nome")
-                                            coords = c_data.get("coords")  # Ex: {'x': '...', 'y': '...'}
+
+                                            # Recolhe os dados da ilha extraídos do breadcrumb
+                                            ilha_data = c_data.get("ilha", {})
+                                            nome_ilha = ilha_data.get("nome") or "Ilha Desconhecida"
+                                            coords = ilha_data.get("coords")  # Ex: {'x': '78', 'y': '81'}
+
                                             recursos = c_data.get("recursos", {})
 
                                             def parse_res(val_str):
                                                 if not val_str: return 0.0
                                                 return float(str(val_str).replace(".", "").replace(",", "."))
 
-                                            # Garante a ilha
+                                            # Garante a ilha no banco de dados usando coordenada_x e coordenada_y
                                             ilha_id_alvo = None
                                             if coords:
                                                 x_val, y_val = int(coords.get("x", 0)), int(coords.get("y", 0))
-                                                ilha_obj = Ilha.query.filter_by(x=x_val, y=y_val).first()
+
+                                                # Busca utilizando os nomes reais das colunas do seu modelo
+                                                ilha_obj = Ilha.query.filter_by(coordenada_x=x_val,
+                                                                                coordenada_y=y_val).first()
+
                                                 if not ilha_obj:
-                                                    ilha_obj = Ilha(x=x_val, y=y_val, nome=f"Ilha [{x_val}:{y_val}]")
+                                                    # Cria a ilha usando coordenada_x e coordenada_y
+                                                    ilha_obj = Ilha(coordenada_x=x_val, coordenada_y=y_val)
                                                     db.session.add(ilha_obj)
                                                     db.session.flush()
+
                                                 ilha_id_alvo = ilha_obj.id
 
                                             if not ilha_id_alvo:
-                                                # Fallback caso não venham coordenadas da cidade
+                                                # Fallback caso não venham coordenadas
                                                 ilha_padrao = Ilha.query.first()
                                                 if ilha_padrao:
                                                     ilha_id_alvo = ilha_padrao.id
@@ -197,9 +208,11 @@ with app.app_context():
                                                 )
                                                 db.session.add(cidade_obj)
 
+                                            # Atualiza as referências e dados da cidade
+                                            cidade_obj.ilha_id = ilha_id_alvo
                                             cidade_obj.populacao_livre = int(
                                                 str(c_data.get("cidadaos_livres", "0")).replace(".", ""))
-                                            cidade_obj.populacao_atual = int(
+                                            cidade_obj.populacao_maxima = int(
                                                 str(c_data.get("cidadaos_totais", "0")).replace(".", ""))
 
                                             cidade_obj.madeira = parse_res(recursos.get("madeira", 0))

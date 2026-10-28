@@ -32,6 +32,42 @@ class AccountInfoTask:
         return 0
 
     @classmethod
+    async def _get_island_info(cls, game_page):
+        """
+        Extrai o ID, nome e coordenadas da ilha usando os seletores da barra superior (breadcrumb).
+        """
+        try:
+            island_elem = game_page.locator("#js_islandBread")
+            if await island_elem.is_visible(timeout=2000):
+                # Extrai o ID da ilha do link (href)
+                href = await island_elem.get_attribute("href")
+                id_match = re.search(r"islandId=(\d+)", href) if href else None
+                ilha_id = int(id_match.group(1)) if id_match else None
+
+                # Extrai o nome da ilha
+                name_elem = game_page.locator("#js_islandBreadName")
+                nome_ilha = (await name_elem.inner_text()).strip() if await name_elem.is_visible(
+                    timeout=1000) else "Ilha"
+
+                # Extrai as coordenadas [X:Y]
+                coords_elem = game_page.locator("#js_islandBreadCoords")
+                coords_text = (await coords_elem.inner_text()).strip() if await coords_elem.is_visible(
+                    timeout=1000) else ""
+
+                coord_match = re.search(r"\[(\d+):(\d+)\]", coords_text)
+                coords = {"x": coord_match.group(1), "y": coord_match.group(2)} if coord_match else None
+
+                return {
+                    "ilha_id": ilha_id,
+                    "nome": nome_ilha,
+                    "coords": coords
+                }
+        except Exception:
+            pass
+
+        return {"ilha_id": None, "nome": "Ilha Desconhecida", "coords": None}
+
+    @classmethod
     async def run_async(cls, conta_id: int, game_page):
         logger.info(f"[Account Info] Coletando informações completas para a conta ID {conta_id}...")
 
@@ -115,24 +151,23 @@ class AccountInfoTask:
                         () => {
                             let list = [];
                             let items = document.querySelectorAll("li.ownCity, #dropDown_js_citySelectContainer li.ownCity");
+
                             items.forEach((li) => {
                                 let selectVal = li.getAttribute("selectvalue");
                                 let aTag = li.querySelector("a");
                                 let rawText = aTag ? aTag.innerText : li.innerText;
 
                                 if (selectVal && rawText) {
+                                    // Pega apenas a primeira linha do texto (o nome da cidade) e remove espaços extras
                                     let name = rawText.split("\\n")[0].trim();
-                                    let coordMatch = rawText.match(/\\[(\\d+):(\\d+)\\]/);
-                                    let coords = coordMatch ? { x: coordMatch[1], y: coordMatch[2] } : null;
 
                                     list.push({ 
                                         id: selectVal, 
-                                        name: name,
-                                        raw_text: rawText,
-                                        coords: coords
+                                        name: name
                                     });
                                 }
                             });
+
                             return list;
                         }
                     """)
@@ -163,6 +198,9 @@ class AccountInfoTask:
                         logger.warning(f"[Account Info AVISO] Falha ao navegar diretamente para a cidade {city_name}: {nav_err}")
                         continue
 
+                    # Coleta os dados da ilha usando o nosso novo metodo auxiliar
+                    ilha_info = await cls._get_island_info(game_page)
+
                     wood = await cls._get_resource_value(game_page, ["#js_GlobalMenu_wood"])
                     wine = await cls._get_resource_value(game_page, ["#js_GlobalMenu_wine"])
                     marble = await cls._get_resource_value(game_page, ["#js_GlobalMenu_marble"])
@@ -188,10 +226,11 @@ class AccountInfoTask:
                     except Exception:
                         pass
 
+                    # ... (população e salvamento em cidades_info)
                     cidades_info.append({
                         "id": f"cidade_{idx + 1}",
                         "nome": city_name,
-                        "coords": city.get("coords"),
+                        "ilha": ilha_info,
                         "cidadaos_livres": c_livres,
                         "cidadaos_totais": c_totais,
                         "recursos": {

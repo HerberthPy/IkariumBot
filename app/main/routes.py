@@ -343,7 +343,6 @@ def create_lobby():
         with open(session_file, "w", encoding="utf-8") as f:
             json.dump(session_data, f, indent=4)
 
-        # Dispara o scraper de forma síncrona garantindo o contexto da aplicação Flask
         try:
             from app.bot.tasks.accounts_scraper import AccountsScraperTask
             db_accounts = AccountsScraperTask.run_sync_for_lobby(novo_lobby)
@@ -739,14 +738,33 @@ def get_dados_painel_conta(conta_id):
     ).first_or_404()
 
     cidades_serializadas = []
+    tot_madeira = 0
+    tot_vinho = 0
+    tot_marmore = 0
+    tot_cristal = 0
+    tot_enxofre = 0
+
     for cid in conta.cidades:
         ilha = cid.ilha
+
+        m = float(cid.madeira or 0)
+        v = float(cid.vinho or 0)
+        mar = float(cid.marmore or 0)
+        c = float(cid.cristal or 0)
+        e = float(cid.enxofre or 0)
+
+        tot_madeira += m
+        tot_vinho += v
+        tot_marmore += mar
+        tot_cristal += c
+        tot_enxofre += e
+
         cidades_serializadas.append({
             'nome': cid.nome,
             'posicao_na_ilha': cid.posicao_na_ilha,
-            'populacao_atual': cid.populacao_atual,
-            'populacao_maxima': cid.populacao_maxima,
-            'populacao_livre': cid.populacao_livre,
+            'populacao_atual': cid.populacao_atual or cid.populacao_maxima or 0,
+            'populacao_maxima': cid.populacao_maxima or 0,
+            'populacao_livre': cid.populacao_livre or 0,
             'ilha': {
                 'coordenada_x': ilha.coordenada_x if ilha else 0,
                 'coordenada_y': ilha.coordenada_y if ilha else 0,
@@ -757,13 +775,21 @@ def get_dados_painel_conta(conta_id):
                 'milagre_nivel': ilha.milagre_nivel if ilha else 0
             },
             'recursos': {
-                'madeira': f"{cid.madeira:,.0f}".replace(',', '.'),
-                'vinho': f"{cid.vinho:,.0f}".replace(',', '.'),
-                'marmore': f"{cid.marmore:,.0f}".replace(',', '.'),
-                'cristal': f"{cid.cristal:,.0f}".replace(',', '.'),
-                'enxofre': f"{cid.enxofre:,.0f}".replace(',', '.')
+                'madeira': f"{m:,.0f}".replace(',', '.'),
+                'vinho': f"{v:,.0f}".replace(',', '.'),
+                'marmore': f"{mar:,.0f}".replace(',', '.'),
+                'cristal': f"{c:,.0f}".replace(',', '.'),
+                'enxofre': f"{e:,.0f}".replace(',', '.')
             }
         })
+
+    recursos_imperio_calculado = {
+        'madeira': f"{tot_madeira:,.0f}".replace(',', '.'),
+        'vinho': f"{tot_vinho:,.0f}".replace(',', '.'),
+        'marmore': f"{tot_marmore:,.0f}".replace(',', '.'),
+        'cristal': f"{tot_cristal:,.0f}".replace(',', '.'),
+        'enxofre': f"{tot_enxofre:,.0f}".replace(',', '.')
+    }
 
     return jsonify({
         'servidor': conta.servidor,
@@ -772,7 +798,7 @@ def get_dados_painel_conta(conta_id):
         'ouro_rendimento': conta.ouro_rendimento,
         'barcos_totais': conta.barcos_totais,
         'barcos_disponiveis': conta.barcos_disponiveis,
-        'recursos_imperio': conta.recursos_totais_imperio,
+        'recursos_imperio': recursos_imperio_calculado,
         'cidades': cidades_serializadas,
         'ultima_sincronizacao': conta.ultima_sincronizacao.strftime(
             '%d/%m/%Y %H:%M') if conta.ultima_sincronizacao else 'Nunca',

@@ -1115,29 +1115,18 @@
     document.getElementById(`info-sync-${contaId}`).textContent = `Última sincronização: ${data.ultima_sincronizacao}`;
 
     let rec = data.recursos_imperio || {};
-    let totalMadeira = rec.madeira || 0;
-    let totalVinho = rec.vinho || 0;
-    let totalMarmore = rec.marmore || 0;
-    let totalCristal = rec.cristal || 0;
-    let totalEnxofre = rec.enxofre || 0;
 
-    if ((!totalMadeira || totalMadeira === '0' || totalMadeira === 0) && data.cidades && data.cidades.length > 0) {
-      let m = 0, v = 0, mar = 0, c = 0, e = 0;
-      data.cidades.forEach(cid => {
-        if (cid.recursos) {
-          m += parseInt(String(cid.recursos.madeira || '0').replace(/\./g, '')) || 0;
-          v += parseInt(String(cid.recursos.vinho || '0').replace(/\./g, '')) || 0;
-          mar += parseInt(String(cid.recursos.marmore || '0').replace(/\./g, '')) || 0;
-          c += parseInt(String(cid.recursos.cristal || '0').replace(/\./g, '')) || 0;
-          e += parseInt(String(cid.recursos.enxofre || '0').replace(/\./g, '')) || 0;
-        }
-      });
-      totalMadeira = m.toLocaleString('pt-BR');
-      totalVinho = v.toLocaleString('pt-BR');
-      totalMarmore = mar.toLocaleString('pt-BR');
-      totalCristal = c.toLocaleString('pt-BR');
-      totalEnxofre = e.toLocaleString('pt-BR');
+    function formatarNumeroTopo(val) {
+      if (!val) return '0';
+      let num = typeof val === 'string' ? parseInt(val.replace(/\./g, ''), 10) : val;
+      return isNaN(num) ? '0' : num.toLocaleString('pt-BR');
     }
+
+    let totalMadeira = formatarNumeroTopo(rec.madeira);
+    let totalVinho = formatarNumeroTopo(rec.vinho);
+    let totalMarmore = formatarNumeroTopo(rec.marmore);
+    let totalCristal = formatarNumeroTopo(rec.cristal);
+    let totalEnxofre = formatarNumeroTopo(rec.enxofre);
 
     const iconGold = "{{ url_for('static', filename='img/finances.png') }}";
     const iconTransporter = "{{ url_for('static', filename='img/icon_ship.png') }}";
@@ -1209,9 +1198,9 @@
       `;
 
       data.cidades.forEach(cidade => {
-        let cidLivres = cidade.cidadaos_livres || '0';
-        let cidTotais = cidade.cidadaos_totais || '0';
-        let cidDisplay = (cidLivres !== '0' || cidTotais !== '0') ? `${cidLivres} (${cidTotais})` : '—';
+        let cidLivres = cidade.populacao_livre || 0;
+        let cidTotais = cidade.populacao_atual || cidade.populacao_maxima || 0;
+        let cidDisplay = (cidLivres > 0 || cidTotais > 0) ? `${cidLivres.toLocaleString('pt-BR')} (${cidTotais.toLocaleString('pt-BR')})` : '—';
 
         cidadesHtml += `
           <tr>
