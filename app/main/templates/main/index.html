@@ -230,7 +230,7 @@
                               </thead>
                               <tbody>
                                 {% for conta in contas_ativas %}
-                                <tr style="cursor: pointer;" onclick="abrirAbaConta({{ conta.id }}, '{{ conta.servidor }} - {{ conta.nome_usuario }}', {{ 'true' if conta.is_playing_active else 'false' }})" title="Clique para abrir os detalhes da conta">
+                                <tr style="cursor: pointer;" onclick="abrirAbaConta({{ conta.id }}, '{{ conta.servidor }} - {{ conta.nome_usuario }}')" title="Clique para abrir os detalhes da conta">
                                   <td class="ps-3 py-2 fw-bold text-dark small">
                                     <i class="bi bi-hdd-network text-primary me-2"></i>{{ conta.servidor }}
                                   </td>
@@ -521,7 +521,7 @@
                         </thead>
                         <tbody>
                           {% for acc in item.contas %}
-                          <tr style="cursor: pointer;" onclick="abrirAbaConta({{ acc.id }}, '{{ acc.servidor }} - {{ acc.nome_usuario }}', false)" title="Clique para abrir os detalhes da conta">
+                          <tr style="cursor: pointer;" onclick="abrirAbaConta({{ acc.id }}, '{{ acc.servidor }} - {{ acc.nome_usuario }}')" title="Clique para abrir os detalhes da conta">
                             <td class="ps-3 py-2 fw-bold text-dark small">
                               <i class="bi bi-hdd-network text-primary me-2"></i>{{ acc.servidor }} - {{ acc.nome_usuario }}
                             </td>
@@ -642,32 +642,6 @@
 
 {% block extra_js %}
 <script>
-  function formatarOuroPadrao(rawGold) {
-    if (!rawGold) return '0';
-    let str = String(rawGold).trim();
-    let digits = str.replace(/\D/g, '');
-    if (!digits) return '0';
-
-    let intPart = digits.length > 2 ? parseInt(digits.slice(0, -2)) : 0;
-    if (intPart === 0) return '0';
-
-    return intPart.toLocaleString('pt-BR');
-  }
-
-  function formatarRendimentoJS(rawRend) {
-    if (!rawRend) return '+0/h';
-    let str = String(rawRend).trim();
-    let sinal = str.startsWith('-') ? '-' : '+';
-    let digits = str.replace(/\D/g, '');
-    if (!digits) return '+0/h';
-
-    let intPart = digits.length > 2 ? parseInt(digits.slice(0, -2)) : 0;
-    if (intPart === 0) return '+0/h';
-
-    let formattedNum = intPart.toLocaleString('pt-BR');
-    return `${sinal}${formattedNum}/h`;
-  }
-
   document.addEventListener('DOMContentLoaded', () => {
     const bookmarkletCode = "javascript:(function(){if(!window.location.hostname.includes('ikariam')){alert('Abra a página do Ikariam antes de clicar no favorito!');return;}const s={cookies:document.cookie,localStorage:JSON.stringify(localStorage)};const e=btoa(unescape(encodeURIComponent(JSON.stringify(s))));const o=document.createElement('div');o.style='position:fixed;top:0;left:0;width:100vw;height:100vh;background:rgba(15,23,42,0.95);z-index:999999;display:flex;align-items:center;justify-content:center;font-family:Arial,sans-serif;';o.innerHTML=`<div style='background:#1e293b;color:#f8fafc;padding:30px;border-radius:16px;max-width:550px;width:90%;text-align:center;'><h2 style='color:#22c55e;margin-bottom:10px;'>✓ Sessão Capturada!</h2><p style='color:#94a3b8;font-size:13px;'>Copie o código abaixo e cole no formulário do IkariumBot:</p><textarea id='code' readonly style='width:100%;height:100px;background:#0f172a;color:#38bdf8;border:1px solid #334155;border-radius:8px;padding:8px;font-size:11px;resize:none;'>${e}</textarea><button onclick='navigator.clipboard.writeText(\"${e}\");alert(\"Código copiado para a área de transferência!\");' style='margin-top:12px;width:100%;background:#0284c7;color:white;border:none;padding:10px;border-radius:8px;font-weight:bold;cursor:pointer;'>📋 Copiar Código da Sessão</button><button onclick='(async function(){try{localStorage.clear();sessionStorage.clear();if(window.indexedDB&&indexedDB.databases){const dbs=await indexedDB.databases();dbs.forEach(db=>{if(db.name)indexedDB.deleteDatabase(db.name);});}if(window.caches){const keys=await caches.keys();keys.forEach(k=>caches.delete(k));}}catch(err){}document.cookie.split(\";\").forEach(c=>{document.cookie=c.replace(/^ +/,\"\").replace(/=.*/,\"=;expires=\"+new Date().toUTCString()+\";path=/;domain=\"+window.location.hostname);document.cookie=c.replace(/^ +/,\"\").replace(/=.*/,\"=;expires=\"+new Date().toUTCString()+\";path=/;domain=.gameforge.com\");});window.location.href=\"https://lobby.ikariam.gameforge.com/pt_BR/login\";})();' style='margin-top:8px;width:100%;background:#d97706;color:white;border:none;padding:10px;border-radius:8px;font-weight:bold;cursor:pointer;'>🚪 Sair do Navegador (Para Logar Outro Lobby)</button></div>`;document.body.appendChild(o);})();";
 
@@ -775,17 +749,13 @@
     clickedBtn.classList.add('btn-primary', 'active');
   }
 
-  function abrirAbaConta(contaId, contaNome, isPlayingActive) {
+  function abrirAbaConta(contaId, contaNome) {
     const tabId = `account-tab-${contaId}`;
     const paneId = `account-pane-${contaId}`;
     if (document.getElementById(tabId)) {
       document.getElementById(tabId).click();
       return;
     }
-
-    const btnClass = isPlayingActive ? 'btn-danger' : 'btn-success';
-    const btnText = isPlayingActive ? 'Encerrar Sessão' : 'Jogar';
-    const btnIcon = isPlayingActive ? 'bi-stop-circle-fill' : 'bi-play-circle-fill';
 
     const conteudoPainel = `
       <div class="col-12 py-3" id="wrapper-conta-${contaId}">
@@ -795,14 +765,6 @@
             <div>
               <h5 class="fw-bold mb-1 text-primary"><i class="bi bi-shield-shaded me-2"></i>${contaNome}</h5>
               <span class="text-secondary small" id="info-sync-${contaId}">Última sincronização: A carregar...</span>
-            </div>
-            <div class="d-flex align-items-center gap-2">
-              <button class="btn ${btnClass} btn-sm fw-bold px-3 shadow-sm text-white d-flex align-items-center gap-2" id="btn-jogar-${contaId}" onclick="jogarManual(${contaId})">
-                <i class="bi ${btnIcon}" id="icon-btn-jogar-${contaId}"></i> <span id="txt-btn-jogar-${contaId}">${btnText}</span>
-              </button>
-              <button class="btn btn-warning btn-sm fw-bold px-3 shadow-sm text-dark d-flex align-items-center gap-2" id="btn-sync-${contaId}" onclick="sincronizarPainelConta(${contaId})">
-                <i class="bi bi-arrow-repeat" id="spin-icon-${contaId}"></i> Atualizar Dados
-              </button>
             </div>
           </div>
         </div>
@@ -860,7 +822,7 @@
             <div class="card border-0 shadow-sm rounded-4 p-4 bg-body-tertiary">
               <h6 class="fw-bold mb-3 text-secondary"><i class="bi bi-buildings me-2"></i>Cidades do Império & População</h6>
               <div id="lista-cidades-container-${contaId}">
-                <p class="text-secondary small text-center py-4">Clique em "Atualizar Dados" para carregar as informações.</p>
+                <p class="text-secondary small text-center py-4">A carregar informações sincronizadas...</p>
               </div>
             </div>
           </div>
@@ -1020,7 +982,6 @@
       .then(res => res.json())
       .then(data => {
         atualizarUIEstatisticasConta(contaId, data);
-        atualizarBotaoJogarUI(contaId, data.is_playing_active);
         const autoCheck = document.getElementById(`autoSyncCheck-${contaId}`);
         if (autoCheck) autoCheck.checked = data.automacao_ativa;
       })
@@ -1038,95 +999,10 @@
       .catch(err => console.error("Erro de conexão:", err));
   }
 
-  function jogarManual(contaId) {
-    const btnText = document.getElementById(`txt-btn-jogar-${contaId}`);
-
-    if (btnText && btnText.textContent.includes("Encerrar")) {
-      fetch(`/contas/${contaId}/encerrar-manual`, { method: 'POST' })
-        .then(res => res.json())
-        .then(data => {
-          atualizarBotaoJogarUI(contaId, false);
-        })
-        .catch(err => alert("Erro ao encerrar sessão manual."));
-      return;
-    }
-
-    fetch(`/contas/${contaId}/jogar-manual`, { method: 'POST' })
-      .then(res => res.json())
-      .then(data => {
-        if (data.success) {
-          atualizarBotaoJogarUI(contaId, true);
-        } else {
-          alert("Erro ao iniciar o jogo: " + data.message);
-        }
-      })
-      .catch(err => alert("Erro de conexão."));
-  }
-
-  function atualizarBotaoJogarUI(contaId, isActive) {
-    const btn = document.getElementById(`btn-jogar-${contaId}`);
-    const btnText = document.getElementById(`txt-btn-jogar-${contaId}`);
-    const icon = document.getElementById(`icon-btn-jogar-${contaId}`);
-    if (btn && btnText) {
-      if (isActive) {
-        btn.classList.remove('btn-success');
-        btn.classList.add('btn-danger');
-        btnText.textContent = "Encerrar Sessão";
-        if (icon) {
-          icon.classList.remove('bi-play-circle-fill');
-          icon.classList.add('bi-stop-circle-fill');
-        }
-      } else {
-        btn.classList.remove('btn-danger');
-        btn.classList.add('btn-success');
-        btnText.textContent = "Jogar";
-        if (icon) {
-          icon.classList.remove('bi-stop-circle-fill');
-          icon.classList.add('bi-play-circle-fill');
-        }
-      }
-    }
-  }
-
-  function sincronizarPainelConta(contaId) {
-    const btn = document.getElementById(`btn-sync-${contaId}`);
-    btn.disabled = true;
-    btn.innerHTML = `<span class="spinner-border spinner-border-sm me-1" role="status" aria-hidden="true"></span> SINCRONIZANDO...`;
-
-    fetch(`/contas/${contaId}/sincronizar-painel`, { method: 'POST' })
-      .then(res => res.json())
-      .then(data => {
-        btn.disabled = false;
-        btn.innerHTML = `<i class="bi bi-arrow-repeat"></i> Atualizar Dados`;
-        if (data.success) {
-          carregarDadosPainelConta(contaId);
-        } else {
-          alert("Erro: " + data.message);
-        }
-      })
-      .catch(err => {
-        btn.disabled = false;
-        btn.innerHTML = `<i class="bi bi-arrow-repeat"></i> Atualizar Dados`;
-        alert("Erro de conexão ao sincronizar.");
-      });
-  }
-
   function atualizarUIEstatisticasConta(contaId, data) {
     document.getElementById(`info-sync-${contaId}`).textContent = `Última sincronização: ${data.ultima_sincronizacao}`;
 
     let rec = data.recursos_imperio || {};
-
-    function formatarNumeroTopo(val) {
-      if (!val) return '0';
-      let num = typeof val === 'string' ? parseInt(val.replace(/\./g, ''), 10) : val;
-      return isNaN(num) ? '0' : num.toLocaleString('pt-BR');
-    }
-
-    let totalMadeira = formatarNumeroTopo(rec.madeira);
-    let totalVinho = formatarNumeroTopo(rec.vinho);
-    let totalMarmore = formatarNumeroTopo(rec.marmore);
-    let totalCristal = formatarNumeroTopo(rec.cristal);
-    let totalEnxofre = formatarNumeroTopo(rec.enxofre);
 
     const iconGold = "{{ url_for('static', filename='img/finances.png') }}";
     const iconTransporter = "{{ url_for('static', filename='img/icon_ship.png') }}";
@@ -1137,15 +1013,12 @@
     const iconSulfur = "{{ url_for('static', filename='img/icon_sulfur.png') }}";
     const iconPopulation = "{{ url_for('static', filename='img/icon_population.png') }}";
 
-    const ouroFormatadoPadrao = formatarOuroPadrao(data.ouro);
-    const rendimentoFormatadoJS = formatarRendimentoJS(data.ouro_rendimento);
-
     const headerHtml = `
       <div class="d-flex align-items-center gap-2" title="Ouro e Rendimento">
         <img src="${iconGold}" alt="Ouro" style="width: 26px; height: 26px;">
         <div class="text-start">
-          <div class="fw-bold small">${ouroFormatadoPadrao}</div>
-          <div class="text-success extra-small" style="font-size: 0.7rem;">${rendimentoFormatadoJS}</div>
+          <div class="fw-bold small">${data.ouro_formatado || '0'}</div>
+          <div class="text-success extra-small" style="font-size: 0.7rem;">${data.ouro_rendimento_formatado || '+0/h'}</div>
         </div>
       </div>
       <div class="d-flex align-items-center gap-2" title="Barcos de Transporte">
@@ -1157,23 +1030,23 @@
       </div>
       <div class="d-flex align-items-center gap-1" title="Madeira">
         <img src="${iconWood}" alt="Madeira" style="width: 18px; height: 18px;">
-        <span class="fw-bold small">${totalMadeira}</span>
+        <span class="fw-bold small">${rec.madeira_formatada || '0'}</span>
       </div>
       <div class="d-flex align-items-center gap-1" title="Vinho">
         <img src="${iconWine}" alt="Vinho" style="width: 18px; height: 18px;">
-        <span class="fw-bold small">${totalVinho}</span>
+        <span class="fw-bold small">${rec.vinho_formatado || '0'}</span>
       </div>
       <div class="d-flex align-items-center gap-1" title="Mármore">
         <img src="${iconMarble}" alt="Mármore" style="width: 18px; height: 18px;">
-        <span class="fw-bold small">${totalMarmore}</span>
+        <span class="fw-bold small">${rec.marmore_formatado || '0'}</span>
       </div>
       <div class="d-flex align-items-center gap-1" title="Cristal">
         <img src="${iconGlass}" alt="Cristal" style="width: 18px; height: 18px;">
-        <span class="fw-bold small">${totalCristal}</span>
+        <span class="fw-bold small">${rec.cristal_formatado || '0'}</span>
       </div>
       <div class="d-flex align-items-center gap-1" title="Enxofre">
         <img src="${iconSulfur}" alt="Enxofre" style="width: 18px; height: 18px;">
-        <span class="fw-bold small">${totalEnxofre}</span>
+        <span class="fw-bold small">${rec.enxofre_formatado || '0'}</span>
       </div>
     `;
     document.getElementById(`header-recursos-${contaId}`).innerHTML = headerHtml;
@@ -1198,17 +1071,13 @@
       `;
 
       data.cidades.forEach(cidade => {
-        let cidLivres = cidade.populacao_livre || 0;
-        let cidTotais = cidade.populacao_atual || cidade.populacao_maxima || 0;
-        let cidDisplay = (cidLivres > 0 || cidTotais > 0) ? `${cidLivres.toLocaleString('pt-BR')} (${cidTotais.toLocaleString('pt-BR')})` : '—';
-
         cidadesHtml += `
           <tr>
             <td class="py-3 px-3 fw-bold">
               <i class="bi bi-building text-primary me-2"></i>${cidade.nome}
             </td>
             <td class="py-3 px-3 text-center">
-              <span class="badge bg-secondary-subtle text-secondary border px-2 py-1 fw-semibold">${cidDisplay}</span>
+              <span class="badge bg-secondary-subtle text-secondary border px-2 py-1 fw-semibold">${cidade.populacao_display || '—'}</span>
             </td>
             <td class="py-3 px-3 text-center fw-semibold">${cidade.recursos?.madeira || '0'}</td>
             <td class="py-3 px-3 text-center fw-semibold">${cidade.recursos?.vinho || '0'}</td>

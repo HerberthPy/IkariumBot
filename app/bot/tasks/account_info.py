@@ -13,8 +13,42 @@ class AccountInfoTask:
     def _clean_number(text: str) -> int:
         if not text:
             return 0
-        cleaned = re.sub(r"[^\d]", "", text)
-        return int(cleaned) if cleaned else 0
+
+        str_val = str(text).strip()
+
+        # Remove tudo o que não for número, ponto ou vírgula
+        str_val = re.sub(r"[^\d,\.]", "", str_val)
+        if not str_val:
+            return 0
+
+        # Se houver ponto e vírgula (ex: formato europeu/brasileiro)
+        if ',' in str_val and '.' in str_val:
+            if str_val.find(',') < str_val.find('.'):
+                str_val = str_val.replace(',', '')
+            else:
+                str_val = str_val.replace('.', '').replace(',', '.')
+        elif ',' in str_val:
+            # Se tem vírgula, remove-a se for milhar ou substitui por ponto se for decimal
+            if len(str_val.split(',')[-1]) == 2:
+                str_val = str_val.replace(',', '.')
+            else:
+                str_val = str_val.replace(',', '')
+        elif '.' in str_val:
+            # Se tem ponto (ex: 16.794 ou 11.41), removemos o ponto para que vire um inteiro puro (16794)
+            # Se o ponto for decimal real com 2 dígitos (ex: 13.51 -> 1351 ou arredondado), tratamos em segurança:
+            parts = str_val.split('.')
+            if len(parts) == 2 and len(parts[1]) == 2:
+                # Caso seja um decimal curto do jogo, tratamos como inteiro multiplicando ou limpando
+                str_val = "".join(parts)
+            else:
+                # Ponto de milhar (ex: 16.794 vira 16794)
+                str_val = str_val.replace('.', '')
+
+        try:
+            return int(float(str_val))
+        except ValueError:
+            cleaned = re.sub(r"[^\d]", "", str_val)
+            return int(cleaned) if cleaned else 0
 
     @classmethod
     async def _get_resource_value(cls, game_page, selectors) -> int:
@@ -23,7 +57,7 @@ class AccountInfoTask:
                 loc = game_page.locator(selector)
                 if await loc.is_visible(timeout=2000):
                     text = await loc.inner_text()
-                    # ATENÇÃO: _clean_number é síncrono, portanto NÃO leva await
+                    # Como _clean_number é staticmethod, chamamos diretamente pela classe ou cls
                     val = cls._clean_number(text)
                     if val >= 0:
                         return val
@@ -80,7 +114,6 @@ class AccountInfoTask:
             # =========================================================================
             try:
                 logger.info("[Game Cleaner] Verificando pop-ups, anúncios e banner de cookies...")
-                # Se o UICleaner for síncrono, chamamos sem await para evitar NoneType
                 if asyncio.iscoroutinefunction(UICleaner.dismiss_popups_and_banners):
                     await UICleaner.dismiss_popups_and_banners(game_page)
                 else:
@@ -158,7 +191,6 @@ class AccountInfoTask:
                                 let rawText = aTag ? aTag.innerText : li.innerText;
 
                                 if (selectVal && rawText) {
-                                    // Pega apenas a primeira linha do texto (o nome da cidade) e remove espaços extras
                                     let name = rawText.split("\\n")[0].trim();
 
                                     list.push({ 
@@ -198,7 +230,7 @@ class AccountInfoTask:
                         logger.warning(f"[Account Info AVISO] Falha ao navegar diretamente para a cidade {city_name}: {nav_err}")
                         continue
 
-                    # Coleta os dados da ilha usando o nosso novo metodo auxiliar
+                    # Coleta os dados da ilha
                     ilha_info = await cls._get_island_info(game_page)
 
                     wood = await cls._get_resource_value(game_page, ["#js_GlobalMenu_wood"])
@@ -226,7 +258,6 @@ class AccountInfoTask:
                     except Exception:
                         pass
 
-                    # ... (população e salvamento em cidades_info)
                     cidades_info.append({
                         "id": f"cidade_{idx + 1}",
                         "nome": city_name,

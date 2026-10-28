@@ -74,7 +74,7 @@ with app.app_context():
         from playwright.async_api import async_playwright
 
         async with async_playwright() as p:
-            browser = await p.chromium.launch(headless=False, args=["--start-maximized"])
+            browser = await p.chromium.launch(headless=True, args=["--start-maximized"])
             try:
                 with app.app_context():
                     lobby_db = db.session.get(Lobby, lobby_id)
@@ -158,19 +158,40 @@ with app.app_context():
                                         from app.models import Cidade, Ilha
                                         cidades_capturadas = dados_coletados.get("cidades", [])
 
+                                        # Funções auxiliares seguras para conversão de números e recursos
+                                        def parse_int_seguro(val):
+                                            if not val:
+                                                return 0
+                                            s = str(val).strip()
+                                            s_limpo = re.sub(r'[^\d]', '', s)
+                                            return int(s_limpo) if s_limpo else 0
+
+                                        def parse_res(val_str):
+                                            if not val_str: return 0.0
+                                            s = str(val_str).strip()
+                                            if ',' in s and '.' in s:
+                                                if s.find(',') < s.find('.'):
+                                                    s = s.replace(',', '')
+                                                else:
+                                                    s = s.replace('.', '').replace(',', '.')
+                                            elif ',' in s:
+                                                if len(s.split(',')[-1]) == 2:
+                                                    s = s.replace(',', '.')
+                                                else:
+                                                    s = s.replace(',', '')
+                                            try:
+                                                return float(s)
+                                            except:
+                                                return 0.0
+
                                         for c_data in cidades_capturadas:
                                             nome_cidade = c_data.get("nome")
 
                                             # Recolhe os dados da ilha extraídos do breadcrumb
                                             ilha_data = c_data.get("ilha", {})
-                                            nome_ilha = ilha_data.get("nome") or "Ilha Desconhecida"
                                             coords = ilha_data.get("coords")  # Ex: {'x': '78', 'y': '81'}
 
                                             recursos = c_data.get("recursos", {})
-
-                                            def parse_res(val_str):
-                                                if not val_str: return 0.0
-                                                return float(str(val_str).replace(".", "").replace(",", "."))
 
                                             # Garante a ilha no banco de dados usando coordenada_x e coordenada_y
                                             ilha_id_alvo = None
@@ -208,12 +229,10 @@ with app.app_context():
                                                 )
                                                 db.session.add(cidade_obj)
 
-                                            # Atualiza as referências e dados da cidade
+                                            # Atualiza as referências e dados da cidade com parsers seguros
                                             cidade_obj.ilha_id = ilha_id_alvo
-                                            cidade_obj.populacao_livre = int(
-                                                str(c_data.get("cidadaos_livres", "0")).replace(".", ""))
-                                            cidade_obj.populacao_maxima = int(
-                                                str(c_data.get("cidadaos_totais", "0")).replace(".", ""))
+                                            cidade_obj.populacao_livre = parse_int_seguro(c_data.get("cidadaos_livres", 0))
+                                            cidade_obj.populacao_maxima = parse_int_seguro(c_data.get("cidadaos_totais", 0))
 
                                             cidade_obj.madeira = parse_res(recursos.get("madeira", 0))
                                             cidade_obj.vinho = parse_res(recursos.get("vinho", 0))

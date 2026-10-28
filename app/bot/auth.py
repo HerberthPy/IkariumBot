@@ -2,6 +2,9 @@
 
 import os
 import json
+
+from app import db
+from app.models import LobbyIPHistory, get_brasilia_time
 from app.bot.utils.ui_cleaner import UICleaner
 from app.bot.utils import BotLogger
 
@@ -70,7 +73,7 @@ class AuthManager:
     async def get_authenticated_context(cls, browser, lobby, proxy_config=None):
         """
         Realiza a autenticação básica, injeta os cookies e localStorage,
-        e abre a página base do Gameforge Lobby de forma assíncrona.
+        configura a proxy do lobby, verifica o IP externo e abre a página base.
         """
         session_file = cls.get_session_file_path(lobby.id)
         cookies = []
@@ -96,7 +99,47 @@ class AuthManager:
             )
 
         logger.info(f"[Auth] Iniciando contexto do navegador para '{lobby.nickname}'...")
-        proxy_context = await browser.new_context()
+
+        # --- CONSTRUÇÃO AUTOMÁTICA DA PROXY DO LOBBY ---
+        if not proxy_config and lobby.proxy:
+            proxy_server = f"http://{lobby.proxy.address}:{lobby.proxy.port}"
+            proxy_config = {"server": proxy_server}
+            if lobby.proxy.username and lobby.proxy.get_password():
+                proxy_config["username"] = lobby.proxy.username
+                proxy_config["password"] = lobby.proxy.get_password()
+            logger.info(
+                f"[Auth] Proxy configurada para o Lobby #{lobby.id} -> {lobby.proxy.address}:{lobby.proxy.port}")
+        else:
+            logger.warning(
+                f"[Auth AVISO] Lobby #{lobby.id} ('{lobby.nickname}') está sem proxy associada no banco de dados!")
+
+        # Cria o contexto do Playwright com a proxy específica deste lobby
+        proxy_context = await browser.new_context(proxy=proxy_config if proxy_config else None)
+        # -----------------------------------------------
+
+        # --- VERIFICAÇÃO E REGISTO DO IP DA PROXY NO HISTÓRICO ---
+        try:
+            ip_page = await proxy_context.new_page()
+            await ip_page.goto("https://api.ipify.org?format=json", timeout=15000)
+            text_content = await ip_page.inner_text("body")
+            ip_data = json.loads(text_content)
+            external_ip = ip_data.get("ip")
+            await ip_page.close()
+
+            if external_ip:
+                logger.info(f"[Proxy Check] IP externo verificado com sucesso: {external_ip} para o Lobby #{lobby.id}")
+
+                # Salva o registo na tabela lobby_ip_history
+                novo_historico = LobbyIPHistory(
+                    lobby_id=lobby.id,
+                    ip_address=external_ip,
+                    recorded_at=get_brasilia_time()
+                )
+                db.session.add(novo_historico)
+                db.session.commit()
+        except Exception as ip_err:
+            logger.warning(f"[Proxy Check AVISO] Não foi possível verificar o IP externo: {ip_err}")
+        # ---------------------------------------------------------
 
         # Injeta os cookies
         formatted_cookies = cls._format_cookies_for_playwright(cookies)

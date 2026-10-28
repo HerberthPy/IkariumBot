@@ -9,10 +9,6 @@ from app.main import main_bp
 from app.main.tasks import sync_webshare_job
 from app.main.decorators import admin_required, user_active_required
 from app.bot import BotManager
-from playwright.sync_api import sync_playwright
-import threading
-
-ACTIVE_MANUAL_BROWSERS = {}
 
 
 @main_bp.route('/')
@@ -172,7 +168,6 @@ def index():
         totais_gerais=overall_totals
     )
 
-
 @main_bp.route('/admin/dashboard', methods=['GET'])
 @login_required
 @admin_required
@@ -181,13 +176,11 @@ def admin_dashboard():
     users = User.query.filter(User.id != current_user.id).order_by(User.created_at.desc()).all()
     return render_template('main/dashboard.html', proxies=proxies, users=users)
 
-
 @main_bp.route('/admin/proxies', methods=['GET'])
 @login_required
 @admin_required
 def admin_proxies():
     return redirect(url_for('main.admin_dashboard'))
-
 
 @main_bp.route('/admin/proxies/<int:proxy_id>/assign', methods=['POST'])
 @login_required
@@ -211,7 +204,6 @@ def assign_proxy(proxy_id):
     db.session.commit()
     return redirect(url_for('main.admin_dashboard'))
 
-
 @main_bp.route('/admin/proxies/<int:proxy_id>/unassign', methods=['POST'])
 @login_required
 @admin_required
@@ -222,7 +214,6 @@ def unassign_proxy(proxy_id):
 
     flash(f'Proxy #{proxy.id} devolvida ao Pool Global com sucesso.', 'info')
     return redirect(url_for('main.admin_dashboard'))
-
 
 @main_bp.route('/admin/proxies/sincronizar', methods=['POST', 'GET'])
 @login_required
@@ -237,13 +228,11 @@ def sync_proxies():
 
     return redirect(url_for('main.admin_dashboard'))
 
-
 @main_bp.route('/admin/users', methods=['GET'])
 @login_required
 @admin_required
 def admin_users():
     return redirect(url_for('main.admin_dashboard'))
-
 
 @main_bp.route('/admin/users/<int:user_id>/toggle-status', methods=['POST'])
 @login_required
@@ -261,7 +250,6 @@ def toggle_user_status(user_id):
     flash(f'Utilizador {user.full_name} foi {status_str} com sucesso!', 'success')
     return redirect(url_for('main.admin_dashboard'))
 
-
 @main_bp.route('/admin/users/<int:user_id>/toggle-admin', methods=['POST'])
 @login_required
 @admin_required
@@ -278,20 +266,17 @@ def toggle_user_admin(user_id):
     flash(f'O utilizador {user.full_name} foi {cargo_str} com sucesso!', 'success')
     return redirect(url_for('main.admin_dashboard'))
 
-
 @main_bp.route('/user/proxies', methods=['GET'])
 @login_required
 @user_active_required
 def user_proxies():
     return redirect(url_for('main.index'))
 
-
 @main_bp.route('/lobbies', methods=['GET'])
 @login_required
 @user_active_required
 def lobbies_list():
     return redirect(url_for('main.index'))
-
 
 @main_bp.route('/lobbies/novo', methods=['GET', 'POST'])
 @login_required
@@ -368,7 +353,6 @@ def create_lobby():
 
     return render_template('main/create_lobby.html', user_proxies=proxies_livres)
 
-
 @main_bp.route('/lobbies/salvar-conta-selecionada', methods=['POST'])
 @login_required
 @user_active_required
@@ -394,7 +378,6 @@ def save_selected_account():
 
     flash(f'Contas configuradas com sucesso para o lobby "{lobby.nickname}"!', 'success')
     return redirect(url_for('main.index'))
-
 
 @main_bp.route('/lobbies/<int:lobby_id>/editar', methods=['POST'])
 @login_required
@@ -442,7 +425,6 @@ def edit_lobby(lobby_id):
     flash(f'Lobby "{lobby.nickname}" atualizado com sucesso!', 'success')
     return redirect(url_for('main.index'))
 
-
 @main_bp.route('/lobbies/<int:lobby_id>/deletar', methods=['POST'])
 @login_required
 @user_active_required
@@ -472,7 +454,6 @@ def delete_lobby(lobby_id):
 
     return redirect(url_for('main.index'))
 
-
 @main_bp.route('/lobbies/<int:lobby_id>/sincronizar', methods=['POST'])
 @login_required
 @user_active_required
@@ -499,7 +480,6 @@ def sync_lobby(lobby_id):
 
     return redirect(url_for('main.index'))
 
-
 @main_bp.route('/lobbies/<int:lobby_id>/varredura-geral', methods=['POST', 'GET'])
 @login_required
 @user_active_required
@@ -523,211 +503,6 @@ def varredura_geral_lobby(lobby_id):
         flash(f"Erro ao executar varredura geral: {str(e)}", "danger")
         return redirect(url_for('main.index'))
 
-
-@main_bp.route('/contas/<int:conta_id>/jogar-manual', methods=['POST'])
-@login_required
-@user_active_required
-def jogar_manual(conta_id):
-    conta = Conta.query.join(Lobby).filter(
-        Conta.id == conta_id,
-        Lobby.user_id == current_user.id
-    ).first_or_404()
-
-    if conta_id in ACTIVE_MANUAL_BROWSERS:
-        try:
-            ACTIVE_MANUAL_BROWSERS[conta_id].quit()
-        except:
-            pass
-        ACTIVE_MANUAL_BROWSERS.pop(conta_id, None)
-
-    lobby = conta.lobby
-    session_file = lobby.get_session_path()
-
-    cookies_list = []
-    local_storage_dict = {}
-
-    if os.path.exists(session_file):
-        try:
-            with open(session_file, "r", encoding="utf-8") as f:
-                data_json = json.load(f)
-
-            raw_cookies = data_json.get("cookies", [])
-            if isinstance(raw_cookies, str):
-                try:
-                    cookies_list = json.loads(raw_cookies)
-                except:
-                    cookies_list = []
-            elif isinstance(raw_cookies, list):
-                cookies_list = raw_cookies
-
-            formatted_cookies = []
-            for c in cookies_list:
-                cookie_item = {
-                    "name": c.get("name"),
-                    "value": c.get("value"),
-                    "domain": c.get("domain", ".gameforge.com"),
-                    "path": c.get("path", "/")
-                }
-                if "secure" in c:
-                    cookie_item["secure"] = c["secure"]
-                if "httpOnly" in c:
-                    cookie_item["httpOnly"] = c["httpOnly"]
-                if "expires" in c and isinstance(c["expires"], (int, float)):
-                    cookie_item["expires"] = c["expires"]
-                formatted_cookies.append(cookie_item)
-            cookies_list = formatted_cookies
-
-            raw_ls = data_json.get("localStorage", "{}")
-            if isinstance(raw_ls, str):
-                try:
-                    local_storage_dict = json.loads(raw_ls)
-                except:
-                    local_storage_dict = {}
-            elif isinstance(raw_ls, dict):
-                local_storage_dict = raw_ls
-
-        except Exception as err:
-            print(f"[Aviso Sessão Manual]: Erro ao processar ficheiro de sessão: {err}")
-
-    proxy_server = None
-    proxy_user = None
-    proxy_pass = None
-
-    if lobby.proxy:
-        proxy_server = f"http://{lobby.proxy.address}:{lobby.proxy.port}"
-        if lobby.proxy.username and lobby.proxy.get_password():
-            proxy_user = lobby.proxy.username
-            proxy_pass = lobby.proxy.get_password()
-
-    app_instance = current_app._get_current_object()
-
-    def run_manual_browser():
-        with app_instance.app_context():
-            p = None
-            browser = None
-            try:
-                p = sync_playwright().start()
-                browser = p.chromium.launch(headless=False, args=["--start-maximized"])
-
-                ACTIVE_MANUAL_BROWSERS[conta_id] = browser
-
-                proxy_config = None
-                if proxy_server:
-                    proxy_config = {"server": proxy_server}
-                    if proxy_user and proxy_pass:
-                        proxy_config["username"] = proxy_user
-                        proxy_config["password"] = proxy_pass
-
-                context_kwargs = {}
-                if proxy_config:
-                    context_kwargs["proxy"] = proxy_config
-
-                context = browser.new_context(**context_kwargs)
-
-                if cookies_list:
-                    try:
-                        context.add_cookies(cookies_list)
-                    except Exception as cookie_err:
-                        print(f"[Aviso Injeção Cookies]: {cookie_err}")
-
-                page = context.new_page()
-
-                if local_storage_dict:
-                    try:
-                        page.goto("https://lobby.ikariam.gameforge.com/", timeout=30000)
-                        page.evaluate("""(storage) => {
-                            for (let key in storage) {
-                                localStorage.setItem(key, storage[key]);
-                            }
-                        }""", local_storage_dict)
-                    except Exception as ls_err:
-                        print(f"[Aviso LocalStorage]: {ls_err}")
-
-                c_db = Conta.query.get(conta_id)
-                if c_db:
-                    c_db.is_playing_active = True
-                    db.session.commit()
-
-                page.goto("https://lobby.ikariam.gameforge.com/pt_BR/hub", timeout=45000, wait_until="domcontentloaded")
-
-                def limpar_sessao():
-                    with app_instance.app_context():
-                        c_close = Conta.query.get(conta_id)
-                        if c_close:
-                            c_close.is_playing_active = False
-                            db.session.commit()
-                    ACTIVE_MANUAL_BROWSERS.pop(conta_id, None)
-                    try:
-                        if browser:
-                            browser.close()
-                        if p:
-                            p.stop()
-                    except:
-                        pass
-
-                page.on("close", lambda: limpar_sessao())
-                context.on("close", lambda: limpar_sessao())
-
-                while browser.is_connected():
-                    import time
-                    time.sleep(1)
-
-            except Exception as e:
-                print(f"[Erro Jogo Manual]: {e}")
-            finally:
-                with app_instance.app_context():
-                    c_err = Conta.query.get(conta_id)
-                    if c_err:
-                        c_err.is_playing_active = False
-                        db.session.commit()
-                ACTIVE_MANUAL_BROWSERS.pop(conta_id, None)
-                try:
-                    if browser:
-                        browser.close()
-                    if p:
-                        p.stop()
-                except:
-                    pass
-
-    threading.Thread(target=run_manual_browser, daemon=True).start()
-
-    return jsonify({'success': True, 'message': 'Janela do jogo aberta com sucesso!'})
-
-
-@main_bp.route('/contas/<int:conta_id>/encerrar-manual', methods=['POST'])
-@login_required
-@user_active_required
-def encerrar_manual(conta_id):
-    conta = Conta.query.join(Lobby).filter(
-        Conta.id == conta_id,
-        Lobby.user_id == current_user.id
-    ).first_or_404()
-
-    if conta_id in ACTIVE_MANUAL_BROWSERS:
-        try:
-            ACTIVE_MANUAL_BROWSERS[conta_id].close()
-        except:
-            pass
-        ACTIVE_MANUAL_BROWSERS.pop(conta_id, None)
-
-    conta.is_playing_active = False
-    db.session.commit()
-
-    return jsonify({'success': True, 'message': 'Sessão manual encerrada com sucesso.'})
-
-
-@main_bp.route('/contas/<int:conta_id>/status-jogo', methods=['GET'])
-@login_required
-@user_active_required
-def status_jogo_conta(conta_id):
-    conta = Conta.query.join(Lobby).filter(
-        Conta.id == conta_id,
-        Lobby.user_id == current_user.id
-    ).first_or_404()
-
-    return jsonify({'is_playing_active': conta.is_playing_active})
-
-
 @main_bp.route('/contas/<int:conta_id>/dados-painel', methods=['GET'])
 @login_required
 @user_active_required
@@ -744,27 +519,48 @@ def get_dados_painel_conta(conta_id):
     tot_cristal = 0
     tot_enxofre = 0
 
+    # Ouro e Rendimento
+    ouro_val = int(conta.ouro or 0)
+    rendimento_val = int(conta.ouro_rendimento or 0)
+
+    ouro_formatado = f"{ouro_val:,.0f}".replace(',', '.') if ouro_val > 0 else "0"
+
+    if rendimento_val >= 0:
+        rendimento_formatado = f"+{rendimento_val:,.0f}/h".replace(',', '.')
+    else:
+        rendimento_formatado = f"-{abs(rendimento_val):,.0f}/h".replace(',', '.')
+
     for cid in conta.cidades:
         ilha = cid.ilha
 
-        m = float(cid.madeira or 0)
-        v = float(cid.vinho or 0)
-        mar = float(cid.marmore or 0)
-        c = float(cid.cristal or 0)
-        e = float(cid.enxofre or 0)
+        # Como já está limpo no BD, apenas lemos como int
+        m_val = int(cid.madeira or 0)
+        v_val = int(cid.vinho or 0)
+        mar_val = int(cid.marmore or 0)
+        c_val = int(cid.cristal or 0)
+        e_val = int(cid.enxofre or 0)
 
-        tot_madeira += m
-        tot_vinho += v
-        tot_marmore += mar
-        tot_cristal += c
-        tot_enxofre += e
+        tot_madeira += m_val
+        tot_vinho += v_val
+        tot_marmore += mar_val
+        tot_cristal += c_val
+        tot_enxofre += e_val
+
+        # Formatação de população livre e máxima com pontos
+        p_livre = int(cid.populacao_livre or 0)
+        p_max = int(cid.populacao_maxima or 0)
+        p_livre_fmt = f"{p_livre:,.0f}".replace(',', '.')
+        p_max_fmt = f"{p_max:,.0f}".replace(',', '.')
+
+        if p_livre > 0 or p_max > 0:
+            pop_display = f"{p_livre_fmt} ({p_max_fmt})"
+        else:
+            pop_display = "—"
 
         cidades_serializadas.append({
             'nome': cid.nome,
             'posicao_na_ilha': cid.posicao_na_ilha,
-            'populacao_atual': cid.populacao_atual or cid.populacao_maxima or 0,
-            'populacao_maxima': cid.populacao_maxima or 0,
-            'populacao_livre': cid.populacao_livre or 0,
+            'populacao_display': pop_display,
             'ilha': {
                 'coordenada_x': ilha.coordenada_x if ilha else 0,
                 'coordenada_y': ilha.coordenada_y if ilha else 0,
@@ -775,37 +571,36 @@ def get_dados_painel_conta(conta_id):
                 'milagre_nivel': ilha.milagre_nivel if ilha else 0
             },
             'recursos': {
-                'madeira': f"{m:,.0f}".replace(',', '.'),
-                'vinho': f"{v:,.0f}".replace(',', '.'),
-                'marmore': f"{mar:,.0f}".replace(',', '.'),
-                'cristal': f"{c:,.0f}".replace(',', '.'),
-                'enxofre': f"{e:,.0f}".replace(',', '.')
+                'madeira': f"{m_val:,.0f}".replace(',', '.') if m_val > 0 else "0",
+                'vinho': f"{v_val:,.0f}".replace(',', '.') if v_val > 0 else "0",
+                'marmore': f"{mar_val:,.0f}".replace(',', '.') if mar_val > 0 else "0",
+                'cristal': f"{c_val:,.0f}".replace(',', '.') if c_val > 0 else "0",
+                'enxofre': f"{e_val:,.0f}".replace(',', '.') if e_val > 0 else "0"
             }
         })
 
+    # Totais do império formatados com pontos separadores de milhar
     recursos_imperio_calculado = {
-        'madeira': f"{tot_madeira:,.0f}".replace(',', '.'),
-        'vinho': f"{tot_vinho:,.0f}".replace(',', '.'),
-        'marmore': f"{tot_marmore:,.0f}".replace(',', '.'),
-        'cristal': f"{tot_cristal:,.0f}".replace(',', '.'),
-        'enxofre': f"{tot_enxofre:,.0f}".replace(',', '.')
+        'madeira_formatada': f"{tot_madeira:,.0f}".replace(',', '.'),
+        'vinho_formatado': f"{tot_vinho:,.0f}".replace(',', '.'),
+        'marmore_formatado': f"{tot_marmore:,.0f}".replace(',', '.'),
+        'cristal_formatado': f"{tot_cristal:,.0f}".replace(',', '.'),
+        'enxofre_formatado': f"{tot_enxofre:,.0f}".replace(',', '.')
     }
 
     return jsonify({
         'servidor': conta.servidor,
         'nome_usuario': conta.nome_usuario,
-        'ouro': conta.ouro,
-        'ouro_rendimento': conta.ouro_rendimento,
+        'ouro_formatado': ouro_formatado,
+        'ouro_rendimento_formatado': rendimento_formatado,
         'barcos_totais': conta.barcos_totais,
         'barcos_disponiveis': conta.barcos_disponiveis,
         'recursos_imperio': recursos_imperio_calculado,
         'cidades': cidades_serializadas,
         'ultima_sincronizacao': conta.ultima_sincronizacao.strftime(
             '%d/%m/%Y %H:%M') if conta.ultima_sincronizacao else 'Nunca',
-        'is_playing_active': conta.is_playing_active,
         'automacao_ativa': conta.automacao_ativa
     })
-
 
 @main_bp.route('/api/lobbies/status', methods=['GET'])
 @login_required
@@ -847,7 +642,6 @@ def get_lobbies_status():
         }
 
     return jsonify(status_data)
-
 
 @main_bp.route('/contas/<int:conta_id>/toggle-automacao', methods=['POST'])
 @login_required
